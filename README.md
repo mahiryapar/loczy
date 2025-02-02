@@ -1,16 +1,58 @@
-# loczy
+# Loczy
 
-A new Flutter project.
+Loczy is a location-based social media app. It is open source and under development.
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+### 1️⃣ Install Dependencies  
+Run the following command to fetch Flutter dependencies:  
 
-A few resources to get you started if this is your first Flutter project:
+```sh
+flutter pub get
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+### 2️⃣ Firebase Setup (Optional)  
+If using Firebase, add your `google-services.json` file in `android/app/` (for Android) and `GoogleService-Info.plist` in `ios/Runner/`.  
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### 3️⃣ Run the Project  
+Use the following command to launch the app on a connected device:  
+
+```sh
+flutter run
+```
+
+## 📌 Features
+- 📍 Location-Based Posts – Users can share posts based on their current location.  
+- 💬 Comments & Likes – Engage with posts by commenting and liking them.  
+- 🔔 Real-Time Notifications – Get instant updates on interactions.  
+- 🔍 Explore Nearby Content – Discover trending posts in your area.  
+- 🛠️ Built with Flutter – Ensuring a fast and seamless UI/UX experience.  
+
+## 🛠️ Tech Stack
+- **Framework**: Flutter  
+- **Backend**: Custom API (Node.js, PHP, or Firebase)  
+- **Database**: MS SQL Server  
+- **Authentication**: Firebase Auth / Custom Auth  
+
+## 📄 License
+This project is open-source and available under the **MIT License**. Feel free to contribute!  
+
+## 🤝 Contributing
+We welcome contributions! To contribute:  
+1. Fork the repository  
+2. Create a new branch (`git checkout -b feature-branch`)  
+3. Make your changes and commit (`git commit -m "Added new feature"`)  
+4. Push to the branch (`git push origin feature-branch`)  
+5. Open a Pull Request  
+
+## 📩 Contact
+If you have any questions or suggestions, feel free to open an issue or contact me directly.
+<a href="https://twitter.com/YOUR_TWITTER" target="_blank">
+  <img src="https://cdn-icons-png.flaticon.com/512/733/733579.png" width="40">
+</a>  
+<a href="https://instagram.com/YOUR_INSTAGRAM" target="_blank">
+  <img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" width="40">
+</a>  
+<a href="mailto:YOUR_EMAIL@example.com">
+  <img src="https://cdn-icons-png.flaticon.com/512/732/732200.png" width="40">
+</a> 
