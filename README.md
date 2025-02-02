@@ -47,12 +47,16 @@ We welcome contributions! To contribute:
 
 ## 📩 Contact
 If you have any questions or suggestions, feel free to open an issue or contact me directly.
-<a href="https://twitter.com/YOUR_TWITTER" target="_blank">
+<br>
+<a href="https://twitter.com/mahirjs" target="_blank">
   <img src="https://cdn-icons-png.flaticon.com/512/733/733579.png" width="40">
+  <h1> @mahirjs </h1>
 </a>  
-<a href="https://instagram.com/YOUR_INSTAGRAM" target="_blank">
+<a href="https://instagram.com/mahir.js" target="_blank">
   <img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" width="40">
+  <h1> @mahir.js </h1>
 </a>  
-<a href="mailto:YOUR_EMAIL@example.com">
+<a href="mailto:mahiryapar2453@gmail.com">
   <img src="https://cdn-icons-png.flaticon.com/512/732/732200.png" width="40">
+  <h1> mahiryapar2453@gmail.com </h1>
 </a> 
