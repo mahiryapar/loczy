@@ -3,13 +3,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:loczy/pages/hesabim.dart';
 import 'package:loczy/pages/ana_sayfa.dart';
 import 'package:loczy/pages/kaydol_giris.dart';
+import 'package:provider/provider.dart';
+import 'package:loczy/theme.dart';
+import 'package:loczy/config_getter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   final String? userId = prefs.getString('userId'); 
-
-  runApp(MyApp(isLoggedIn: userId != null));
+  await ConfigLoader.loadConfig();
+  runApp( MyApp(isLoggedIn: userId != null),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -19,6 +23,9 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: ThemeMode.system,
       debugShowCheckedModeBanner: false,
       home: isLoggedIn ? AnaSayfa() : KaydolGiris(),
     );
