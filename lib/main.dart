@@ -9,16 +9,12 @@ import 'package:loczy/config_getter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final prefs = await SharedPreferences.getInstance();
-  final String? userId = prefs.getString('userId'); 
-  await ConfigLoader.loadConfig();
-  runApp( MyApp(isLoggedIn: userId != null),
-  );
+  await ConfigLoader.loadConfig(); // Config dosyasını yükle
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final bool isLoggedIn;
-  const MyApp({Key? key, required this.isLoggedIn}) : super(key: key);
+  const MyApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +23,46 @@ class MyApp extends StatelessWidget {
       darkTheme: darkTheme,
       themeMode: ThemeMode.system,
       debugShowCheckedModeBanner: false,
-      home: isLoggedIn ? AnaSayfa() : KaydolGiris(),
+      home: MainScreen(),
     );
+  }
+}
+
+class MainScreen extends StatefulWidget {
+  @override
+  _MainScreenState createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  bool isLoggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLoginStatus();
+  }
+
+  Future<void> _checkLoginStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      isLoggedIn = prefs.getInt('userId') != null;
+    });
+  }
+
+  void _updateLoginStatus(bool loggedIn) {
+    setState(() {
+      isLoggedIn = loggedIn;
+    });
+  }
+
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    _updateLoginStatus(false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return isLoggedIn ? AnaSayfa(logout:_logout) : KaydolGiris(onLoginSuccess: _updateLoginStatus);
   }
 }

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 class AnaSayfa extends StatefulWidget {
+  final Function() logout;
+
+  const AnaSayfa({Key? key, required this.logout}) : super(key: key);
   @override
   _AnaSayfaState createState() => _AnaSayfaState();
 }
@@ -23,6 +26,10 @@ class _AnaSayfaState extends State<AnaSayfa> {
           IconButton(
             icon: Icon(Icons.notifications),
             onPressed: () {},
+          ),
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: widget.logout,
           ),
         ],
       ),
