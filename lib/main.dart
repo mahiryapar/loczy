@@ -3,13 +3,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:loczy/pages/hesabim.dart';
 import 'package:loczy/pages/ana_sayfa.dart';
 import 'package:loczy/pages/kaydol_giris.dart';
-import 'package:provider/provider.dart';
 import 'package:loczy/theme.dart';
 import 'package:loczy/config_getter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await ConfigLoader.loadConfig(); // Config dosyasını yükle
+  await ConfigLoader.loadConfig(); 
   runApp(const MyApp());
 }
 

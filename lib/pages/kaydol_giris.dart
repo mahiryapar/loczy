@@ -1,10 +1,9 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:loczy/config_getter.dart';
+import 'package:loczy/pages/kaydol_dialog.dart';
 
 class KaydolGiris extends StatefulWidget {
    final Function(bool) onLoginSuccess;
@@ -17,8 +16,8 @@ class KaydolGiris extends StatefulWidget {
 class _KaydolGirisState extends State<KaydolGiris> {
   final TextEditingController nicknameController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  bool _isLoading = false; // Yüklenme durumu
-  String _errorMessage = ''; // Hata mesajı
+  bool _isLoading = false; 
+  String _errorMessage = ''; 
 
   Future<void> _login() async {
     setState(() {
@@ -26,8 +25,8 @@ class _KaydolGirisState extends State<KaydolGiris> {
       _errorMessage = '';
     });
 
-    final String apiUrl = await ConfigLoader.apiUrl; // API URL'sini config_getter'dan al
-    final String bearerToken = await ConfigLoader.bearerToken; // Bearer token'ı config_getter'dan al
+    final String apiUrl = await ConfigLoader.apiUrl; 
+    final String bearerToken = await ConfigLoader.bearerToken; 
 
     final response = await http.get(
       Uri.parse('$apiUrl/routers/users.php?nickname=${nicknameController.text}&password=${passwordController.text}'),
@@ -69,6 +68,15 @@ class _KaydolGirisState extends State<KaydolGiris> {
       });
     }
   }
+  
+   void _showRegisterDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return KaydolDialog();
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -103,7 +111,9 @@ class _KaydolGirisState extends State<KaydolGiris> {
                 Text(_errorMessage, style: TextStyle(color: Colors.red)),
               ],
               TextButton(
-                onPressed: () {},
+                onPressed: () {
+                  _showRegisterDialog();
+                },
                 child: Text('Hesabın yok mu? Kayıt Ol'),
               ),
             ],
