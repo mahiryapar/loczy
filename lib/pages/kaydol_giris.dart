@@ -1,12 +1,13 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:loczy/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:loczy/config_getter.dart';
 import 'package:loczy/pages/kaydol_dialog.dart';
 
 class KaydolGiris extends StatefulWidget {
-   final Function(bool) onLoginSuccess;
+  final Function(bool) onLoginSuccess;
 
   const KaydolGiris({Key? key, required this.onLoginSuccess}) : super(key: key);
   @override
@@ -16,8 +17,8 @@ class KaydolGiris extends StatefulWidget {
 class _KaydolGirisState extends State<KaydolGiris> {
   final TextEditingController nicknameController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  bool _isLoading = false; 
-  String _errorMessage = ''; 
+  bool _isLoading = false;
+  String _errorMessage = '';
 
   Future<void> _login() async {
     setState(() {
@@ -25,56 +26,76 @@ class _KaydolGirisState extends State<KaydolGiris> {
       _errorMessage = '';
     });
 
-    final String apiUrl = await ConfigLoader.apiUrl; 
-    final String bearerToken = await ConfigLoader.bearerToken; 
+    try {
+      final String apiUrl = await ConfigLoader.apiUrl;
+      final String bearerToken = await ConfigLoader.bearerToken;
 
-    final response = await http.get(
-      Uri.parse('$apiUrl/routers/users.php?nickname=${nicknameController.text}&password=${passwordController.text}'),
-      headers: {
-      'Authorization': 'Bearer $bearerToken',
-      'Content-Type': 'application/json',
-      },
-    );
-    setState(() {
-      _isLoading = false;
-    });
+      // Şifreyi Base64 ile hashle
+      String hashedPassword = base64Encode(utf8.encode(passwordController.text));
 
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> responseData = json.decode(response.body);
+      final response = await http.get(
+        Uri.parse('$apiUrl/routers/users.php?nickname=${nicknameController.text}&password=$hashedPassword'),
+        headers: {
+          'Authorization': 'Bearer $bearerToken',
+          'Content-Type': 'application/json',
+        },
+      );
 
-      if (responseData['status'] != 'error') {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setInt('userId', responseData['id']); // Kullanıcı ID'yi kaydet
-        await prefs.setString('userNickname', nicknameController.text);
-        await prefs.setString('user_isim', responseData['isim']);
-        await prefs.setString('user_soyisim', responseData['soyisim']);
-        await prefs.setString('user_mail', responseData['mail']);
-        await prefs.setString('user_number', responseData['number']);
-        await prefs.setString('user_ev_konum', responseData['ev_konum']);
-        await prefs.setString('user_hesap_turu', responseData['hesap_turu']);
-        await prefs.setString('user_pp_url', responseData['profil_fotosu_url']);
-        await prefs.setInt('user_takipci', responseData['takipci']);
-        await prefs.setInt('user_takip_edilenler', responseData['takip_edilenler']);
-        widget.onLoginSuccess(true);
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        if (responseData['status'] != 'error') {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setInt('userId', responseData['id']);
+          await prefs.setString('userNickname', nicknameController.text);
+          await prefs.setString('user_isim', responseData['isim']);
+          await prefs.setString('user_soyisim', responseData['soyisim']);
+          await prefs.setString('user_mail', responseData['mail']);
+          await prefs.setString('user_number', responseData['number']);
+          await prefs.setString('user_ev_konum', responseData['ev_konum']);
+          await prefs.setString('user_hesap_turu', responseData['hesap_turu']);
+          await prefs.setString('user_pp_url', responseData['profil_fotosu_url']);
+          await prefs.setInt('user_takipci', responseData['takipci']);
+          await prefs.setInt('user_takip_edilenler', responseData['takip_edilenler']);
+          widget.onLoginSuccess(true);
+        } else {
+          setState(() {
+            _errorMessage = responseData['message'] ?? 'Giriş başarısız!';
+          });
+        }
       } else {
         setState(() {
-          _errorMessage = responseData['message'] ?? 'Giriş başarısız!';
+          _errorMessage = 'Sunucu hatası, lütfen tekrar deneyin!';
         });
       }
-    } else {
+    } catch (e) {
       setState(() {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        _errorMessage = responseData['error'] ?? 'Sunucu hatası, lütfen tekrar deneyin!';
+        _isLoading = false;
+        _errorMessage = 'Bağlantı yok, bağlantınızı kontrol ediniz!';
       });
     }
   }
-  
-   void _showRegisterDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return KaydolDialog();
-      },
+
+  void _showRegisterPage() {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => KaydolPage(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(1.0, 0.0);
+          const end = Offset.zero;
+          const curve = Curves.ease;
+
+          var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+      ),
     );
   }
 
@@ -82,42 +103,72 @@ class _KaydolGirisState extends State<KaydolGiris> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('Giriş Yap', style: Theme.of(context).textTheme.headlineLarge),
-              SizedBox(height: 20),
-              TextField(
-                controller: nicknameController,
-                decoration: InputDecoration(labelText: 'Kullanıcı Adı', border: OutlineInputBorder()),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: EdgeInsets.all(20),
+              margin: EdgeInsets.symmetric(horizontal: 30),
+                decoration: BoxDecoration(
+                color: Theme.of(context).cardTheme.color,
+                borderRadius: BorderRadius.circular(40),
+                border: Border.all(
+                  color: const Color(0xFFD06100),
+                  width: 2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                  color: Theme.of(context).extension<ShadowTheme>()!.shadowColor,
+                  blurRadius: 10,
+                  spreadRadius: 2,
+                  )
+                ],
+                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Giriş Yap', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                  SizedBox(height: 20),
+                  TextField(
+                    controller: nicknameController,
+                    decoration: InputDecoration(labelText: 'Kullanıcı Adı'),
+                  ),
+                  SizedBox(height: 10),
+                  TextField(
+                    controller: passwordController,
+                    obscureText: true,
+                    decoration: InputDecoration(labelText: 'Şifre'),
+                  ),
+                  SizedBox(height: 20),
+                  _isLoading
+                      ? CircularProgressIndicator()
+                      : ElevatedButton(
+                          onPressed: _login,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFD06100),
+                            foregroundColor: const Color(0xFFF2E9E9),
+                            padding: EdgeInsets.symmetric(horizontal: 30, vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          child: Text('Giriş Yap', style: TextStyle(fontSize: 18)),
+                        ),
+                  if (_errorMessage.isNotEmpty) ...[
+                    SizedBox(height: 10),
+                    Text(_errorMessage, style: TextStyle(color: Colors.red)),
+                  ],
+                  TextButton(
+                    onPressed: _showRegisterPage,
+                    child: Text('Hesabın yok mu? Kayıt Ol', style: TextStyle(color: const Color(0xFFD06100))),
+                  ),
+                ],
               ),
-              SizedBox(height: 10),
-              TextField(
-                controller: passwordController,
-                obscureText: true,
-                decoration: InputDecoration(labelText: 'Şifre', border: OutlineInputBorder()),
-              ),
-              SizedBox(height: 20),
-              _isLoading
-                  ? CircularProgressIndicator()
-                  : ElevatedButton(
-                      onPressed: _login,
-                      child: Text('Giriş Yap'),
-                    ),
-              if (_errorMessage.isNotEmpty) ...[
-                SizedBox(height: 10),
-                Text(_errorMessage, style: TextStyle(color: Colors.red)),
-              ],
-              TextButton(
-                onPressed: () {
-                  _showRegisterDialog();
-                },
-                child: Text('Hesabın yok mu? Kayıt Ol'),
-              ),
-            ],
-          ),
+            ),
+            SizedBox(height: 30),
+            Text(
+              'Loczy - Tüm hakları saklıdır.',
+              style: TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+          ],
         ),
       ),
     );
