@@ -4,7 +4,7 @@ import 'package:loczy/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:loczy/config_getter.dart';
-import 'package:loczy/pages/kaydol_dialog.dart';
+import 'package:loczy/pages/kaydol.dart';
 
 class KaydolGiris extends StatefulWidget {
   final Function(bool) onLoginSuccess;

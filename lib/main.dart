@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:loczy/pages/hesabim.dart';
 import 'package:loczy/pages/ana_sayfa.dart';
-import 'package:loczy/pages/kaydol_giris.dart';
+import 'package:loczy/pages/giris.dart';
 import 'package:loczy/theme.dart';
 import 'package:loczy/config_getter.dart';
 
@@ -46,12 +45,20 @@ class _MainScreenState extends State<MainScreen> {
     setState(() {
       isLoggedIn = prefs.getInt('userId') != null;
     });
+
+    if (isLoggedIn) {
+      _navigateToHome();
+    }
   }
 
   void _updateLoginStatus(bool loggedIn) {
     setState(() {
       isLoggedIn = loggedIn;
     });
+
+    if (loggedIn) {
+      _navigateToHome();
+    }
   }
 
   Future<void> _logout() async {
@@ -60,8 +67,15 @@ class _MainScreenState extends State<MainScreen> {
     _updateLoginStatus(false);
   }
 
+  void _navigateToHome() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => AnaSayfa(logout: _logout,)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return isLoggedIn ? AnaSayfa(logout:_logout) : KaydolGiris(onLoginSuccess: _updateLoginStatus);
+    return isLoggedIn ? Container() : KaydolGiris(onLoginSuccess: _updateLoginStatus);
   }
 }

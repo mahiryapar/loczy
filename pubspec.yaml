@@ -38,6 +38,7 @@ dependencies:
   provider: ^5.0.0
   http: ^0.13.3
   flutter_launcher_icons: ^0.14.3
+  marquee: ^2.3.0
 
 dev_dependencies:
   flutter_test:
