@@ -19,11 +19,6 @@ class _AnaSayfaState extends State<AnaSayfa> {
   String _username = '@KullanıcıAdı'; // Varsayılan kullanıcı adı
   bool _showNotifications = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadUsername();
-  }
 
   void _loadUsername() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -32,13 +27,20 @@ class _AnaSayfaState extends State<AnaSayfa> {
     });
   }
 
-  final List<Widget> _pages = [
-    HomePage(),
-    MessagesPage(),
-    ExplorePage(),
-    UploadPage(),
-    ProfilePage(),
-  ];
+  late List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsername();
+    _pages = [
+      HomePage(),
+      MessagesPage(),
+      ExplorePage(),
+      UploadPage(),
+      ProfilePage(logout: widget.logout),
+    ];
+  }
 
   void _onItemTapped(int index) {
     setState(() {

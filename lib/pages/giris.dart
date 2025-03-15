@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:loczy/config_getter.dart';
 import 'package:loczy/pages/kaydol.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
 class KaydolGiris extends StatefulWidget {
   final Function(bool) onLoginSuccess;
@@ -60,6 +62,21 @@ class _KaydolGirisState extends State<KaydolGiris> {
           await prefs.setString('user_pp_url', responseData['profil_fotosu_url']);
           await prefs.setInt('user_takipci', responseData['takipci']);
           await prefs.setInt('user_takip_edilenler', responseData['takip_edilenler']);
+          final profilePhotoResponse = await http.get(
+            Uri.parse('$apiUrl/get_files.php?fileurl=${(responseData['profil_fotosu_url'])}'), headers: {
+          'Authorization': 'Bearer $bearerToken',
+          'Content-Type': 'application/json',
+        });
+            if (profilePhotoResponse.statusCode == 200) {
+              final byteData = profilePhotoResponse.bodyBytes;
+              final fileName = responseData['profil_fotosu_url'].split('/').last;
+              final directory = await getApplicationDocumentsDirectory();
+              final filePath = '${directory.path}/$fileName';
+              final file = File(filePath);
+              await file.writeAsBytes(byteData);
+              await prefs.setString('user_profile_photo_path', filePath);
+            }
+
           widget.onLoginSuccess(true);
         } else {
           setState(() {
@@ -74,7 +91,7 @@ class _KaydolGirisState extends State<KaydolGiris> {
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Bağlantı yok, bağlantınızı kontrol ediniz!';
+        _errorMessage = 'Bağlantı yok, bağlantınızı kontrol ediniz!'+e.toString();
       });
     }
   }
