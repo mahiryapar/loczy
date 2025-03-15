@@ -132,12 +132,16 @@ class _KaydolGirisState extends State<KaydolGiris> {
                   TextField(
                     controller: nicknameController,
                     decoration: InputDecoration(labelText: 'Kullanıcı Adı'),
+                    textInputAction: TextInputAction.next,
+                    onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                   ),
                   SizedBox(height: 10),
                   TextField(
                     controller: passwordController,
                     obscureText: true,
                     decoration: InputDecoration(labelText: 'Şifre'),
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _login(),
                   ),
                   SizedBox(height: 20),
                   _isLoading

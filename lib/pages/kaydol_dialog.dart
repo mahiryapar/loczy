@@ -82,7 +82,7 @@ class _KaydolPageState extends State<KaydolPage> with TickerProviderStateMixin {
           'sifre': hashedPassword,
           'ev_konum': 'Ev Konumu',
           'hesap_turu': 'Public',
-          'profil_fotosu_url': 'sdfs',
+          'profil_fotosu_url': await ConfigLoader.defaultProfilePhoto,
         }),
       );
 
@@ -254,6 +254,7 @@ class _KaydolPageState extends State<KaydolPage> with TickerProviderStateMixin {
           TextField(
             controller: isimController,
             decoration: InputDecoration(labelText: 'İsim'),
+            textInputAction: TextInputAction.next,
             onChanged: (value) {
               if (RegExp(r'[^a-zA-ZçğıöşüÇĞİÖŞÜ\s]').hasMatch(value)) {
                 setState(() {
@@ -268,11 +269,15 @@ class _KaydolPageState extends State<KaydolPage> with TickerProviderStateMixin {
                 });
               }
             },
+            onSubmitted: (_) {
+              FocusScope.of(context).nextFocus();
+            },
           ),
           SizedBox(height: 10),
           TextField(
             controller: soyisimController,
             decoration: InputDecoration(labelText: 'Soyisim'),
+            textInputAction: TextInputAction.done,
             onChanged: (value) {
               if (RegExp(r'[^a-zA-ZçğıöşüÇĞİÖŞÜ\s]').hasMatch(value)) {
                 setState(() {
@@ -284,6 +289,18 @@ class _KaydolPageState extends State<KaydolPage> with TickerProviderStateMixin {
                           soyisimController.text.isEmpty
                       ? 'Lütfen tüm alanları doldurun!'
                       : '';
+                });
+              }
+            },
+            onSubmitted: (_) {
+              if (_registerError.isEmpty &&
+                  isimController.text.isNotEmpty &&
+                  soyisimController.text.isNotEmpty) {
+                FocusScope.of(context).unfocus();
+                _nextPage();
+              } else {
+                setState(() {
+                  _registerError = 'Lütfen tüm alanları doldurun!';
                 });
               }
             },
@@ -355,6 +372,7 @@ class _KaydolPageState extends State<KaydolPage> with TickerProviderStateMixin {
             controller: mailController,
             decoration: InputDecoration(labelText: 'E-Mail'),
             keyboardType: TextInputType.emailAddress,
+            autofocus: true,
             onChanged: (value) {
               if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
                 setState(() {
@@ -364,6 +382,19 @@ class _KaydolPageState extends State<KaydolPage> with TickerProviderStateMixin {
                 setState(() {
                   _registerError = '';
                 });
+              }
+            },
+            onSubmitted: (value) async {
+              if (mailController.text.isEmpty) {
+                setState(() {
+                  _registerError = 'Lütfen tüm alanları doldurun!';
+                });
+              } else if (_registerError.isEmpty) {
+                await _checkIfExists('mail', mailController.text);
+                if (mailController.text.isNotEmpty && _registerError.isEmpty) {
+                  FocusScope.of(context).unfocus();
+                  _nextPage();
+                }
               }
             },
           ),
@@ -436,6 +467,7 @@ class _KaydolPageState extends State<KaydolPage> with TickerProviderStateMixin {
             controller: numberController,
             decoration: InputDecoration(labelText: 'Telefon'),
             keyboardType: TextInputType.phone,
+            autofocus: true,
             inputFormatters: [
               FilteringTextInputFormatter.digitsOnly,
               LengthLimitingTextInputFormatter(11),
@@ -476,6 +508,23 @@ class _KaydolPageState extends State<KaydolPage> with TickerProviderStateMixin {
                 setState(() {
                   _registerError = '';
                 });
+              }
+            },
+            onSubmitted: (value) async {
+              if (numberController.text.isEmpty) {
+                setState(() {
+                  _registerError = 'Lütfen tüm alanları doldurun!';
+                });
+              } else if (_registerError.isEmpty) {
+                formattedNumber = numberController.text
+                    .replaceAll(RegExp(r'\D'), '');
+                await _checkIfExists('number', formattedNumber);
+                if (formattedNumber.isNotEmpty &&
+                    formattedNumber.length == 11 &&
+                    _registerError.isEmpty) {
+                  FocusScope.of(context).unfocus();
+                  _nextPage();
+                }
               }
             },
           ),
@@ -549,7 +598,9 @@ class _KaydolPageState extends State<KaydolPage> with TickerProviderStateMixin {
           SizedBox(height: 10),
           TextField(
             controller: nicknameController,
+            autofocus: true,
             decoration: InputDecoration(labelText: 'Kullanıcı Adı'),
+            textInputAction: TextInputAction.done,
             onChanged: (value) {
               if (value.length < 4 || value.length > 30) {
                 setState(() {
@@ -574,6 +625,14 @@ class _KaydolPageState extends State<KaydolPage> with TickerProviderStateMixin {
                 setState(() {
                   _registerError = '';
                 });
+              }
+            },
+            onSubmitted: (value) async {
+              if (nicknameController.text.isNotEmpty &&
+                  _registerError.isEmpty) {
+                await _checkIfExists('nickname', nicknameController.text);
+                FocusScope.of(context).unfocus();
+                _nextPage();
               }
             },
           ),
@@ -642,6 +701,7 @@ class _KaydolPageState extends State<KaydolPage> with TickerProviderStateMixin {
             controller: passwordController,
             decoration: InputDecoration(labelText: 'Şifre'),
             obscureText: true,
+            autofocus: true,
             onChanged: (value) {
               String password = value;
               if (password.isEmpty) {
@@ -667,6 +727,23 @@ class _KaydolPageState extends State<KaydolPage> with TickerProviderStateMixin {
                 setState(() {
                   _registerError = '';
                 });
+              }
+            },
+            onSubmitted: (value) async {
+              if (_registerError.isEmpty) {
+                String password = passwordController.text;
+                hashedPassword = base64Encode(utf8.encode(password));
+                setState(() {
+                  _isRegistering = true;
+                });
+                await _register();
+                setState(() {
+                  _isRegistering = false;
+                });
+                if (_registerError.isEmpty) {
+                  FocusScope.of(context).unfocus();
+                  _nextPage();
+                }
               }
             },
           ),
@@ -713,7 +790,7 @@ class _KaydolPageState extends State<KaydolPage> with TickerProviderStateMixin {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10)),
                       ),
-                      child: Text('Devam Et'),
+                      child: Text('Hesabı Oluştur'),
                     ),
             ],
           ),

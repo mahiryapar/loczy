@@ -19,4 +19,9 @@ class ConfigLoader {
   static String get bearerToken {
     return _config?['bearer_token'] ?? '';
   }
+
+
+  static String get defaultProfilePhoto {
+    return _config?['default_pp'] ?? '';
+  }
 }
