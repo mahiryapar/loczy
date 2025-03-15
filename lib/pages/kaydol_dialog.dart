@@ -124,6 +124,7 @@ class _KaydolPageState extends State<KaydolPage> with TickerProviderStateMixin {
   }
 
   void _previousPage() {
+    FocusScope.of(context).unfocus();
     _pageController.previousPage(
       duration: Duration(milliseconds: 300),
       curve: Curves.easeInOut,
@@ -713,15 +714,11 @@ class _KaydolPageState extends State<KaydolPage> with TickerProviderStateMixin {
                   _registerError =
                       'Şifre 8 ila 20 karakter uzunluğunda olmalıdır!';
                 });
-              } else if (!RegExp(r'^(?=.*[A-Z])(?=.*[!@#\$&*~_]).+$')
+              } else if (!RegExp(r'^(?=.*[A-Z])(?=.*[!@#\$&*~_])(?=.*[0-9]).+$')
                   .hasMatch(password)) {
                 setState(() {
                   _registerError =
-                      'Şifre en az bir büyük harf ve bir sembol içermelidir!';
-                });
-              } else if (RegExp(r'^[0-9]+$').hasMatch(password)) {
-                setState(() {
-                  _registerError = 'Şifre sadece sayı içermemelidir!';
+                      'Şifre en az bir büyük harf, bir sembol ve bir sayı içermelidir!';
                 });
               } else {
                 setState(() {
