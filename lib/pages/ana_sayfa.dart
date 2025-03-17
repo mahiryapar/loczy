@@ -61,7 +61,7 @@ class _AnaSayfaState extends State<AnaSayfa> {
       top: 0,
       left: 0,
       right: 0,
-      height: _showNotifications ? 300.0 : 45.0,
+      height: _showNotifications ? 300.0 : 60.0,
       child: GestureDetector(
         onTap: _selectedIndex != 4 ? _toggleNotifications : null,
         child: Material(
@@ -71,7 +71,7 @@ class _AnaSayfaState extends State<AnaSayfa> {
             bottomRight: Radius.circular(_showNotifications ? 20.0 : 10.0),
           ),
           child: AppBar(
-            toolbarHeight: _showNotifications ? 300.0 : 45.0,
+            toolbarHeight: _showNotifications ? 300.0 : 60.0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.only(
                 bottomLeft: Radius.circular(_showNotifications ? 20.0 : 10.0),

@@ -91,7 +91,7 @@ class _KaydolGirisState extends State<KaydolGiris> {
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Bağlantı yok, bağlantınızı kontrol ediniz!'+e.toString();
+        _errorMessage = 'Bağlantı yok, bağlantınızı kontrol ediniz!';
       });
     }
   }

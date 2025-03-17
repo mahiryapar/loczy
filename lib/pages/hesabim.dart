@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
-
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
-import 'package:loczy/main.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'ayarlar.dart'; // Ayarlar sayfasını import ediyoruz
+import 'ayarlar.dart';
+import 'package:loczy/config_getter.dart';
+import 'post_goster.dart';
 
 class ProfilePage extends StatefulWidget {
   final Function logout;
@@ -20,6 +22,8 @@ class _ProfilePageState extends State<ProfilePage> {
   int _followers = 0;
   String _pp_path = '';
   String _bio = '';
+  final apiUrl = ConfigLoader.apiUrl;
+  final bearerToken = ConfigLoader.bearerToken;
 
   @override
   void initState() {
@@ -138,13 +142,48 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<List<Map<String, dynamic>>> _fetchPosts() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getInt('userId');
+    
+    final response = await http.get(
+        Uri.parse('$apiUrl/routers/posts.php?atan_id=${userId.toString()}'),
+        headers: {
+          'Authorization': 'Bearer $bearerToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+    if (response.statusCode == 200) {
+      List<dynamic> data = jsonDecode(response.body);
+      List<Map<String, dynamic>> posts = [];
+      
+      for (var item in data) {
+        final post = {
+          'id': item['id'],
+          'video_foto_url': item['video_foto_url']
+        };
+        posts.add(post);
+      }
+      
+      return posts;
+    } else {
+      throw Exception('Failed to load posts');
+    }
+  }
+
   Widget _buildPostsGrid() {
-    return FutureBuilder(
-      future: Future.delayed(Duration(seconds: 2)), // Simulate network delay
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _fetchPosts(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(child: CircularProgressIndicator());
+        } else if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return Center(child: Text('Bu kullanıcının henüz paylaşımı yok.'));
         } else {
+          List<Map<String, dynamic>> posts = snapshot.data!;
           return GridView.builder(
             shrinkWrap: true,
             physics: NeverScrollableScrollPhysics(),
@@ -153,11 +192,43 @@ class _ProfilePageState extends State<ProfilePage> {
               crossAxisSpacing: 4,
               mainAxisSpacing: 4,
             ),
-            itemCount: 20, // Yüklenen post sayısı
+            itemCount: posts.length,
             itemBuilder: (context, index) {
-              return Container(
-                color: Colors.grey[300],
-                child: Center(child: Text('Post ${index + 1}')),
+              return GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => PostGosterPage(postId: posts[index]['id']),
+                    ),
+                  );
+                },
+                child: FutureBuilder<http.Response>(
+                  future: http.get(
+                    Uri.parse('$apiUrl/get_files.php?fileurl=${posts[index]['video_foto_url']}'),
+                    headers: {
+                      'Authorization': 'Bearer $bearerToken',
+                      'Content-Type': 'application/json',
+                    },
+                  ),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Center(child: CircularProgressIndicator());
+                    } else if (snapshot.hasError) {
+                      return Icon(Icons.error, color: Colors.red);
+                    } else if (snapshot.hasData && snapshot.data!.statusCode == 200) {
+                      return Image.memory(
+                        snapshot.data!.bodyBytes,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(Icons.error, color: Colors.red);
+                        },
+                      );
+                    } else {
+                      return Icon(Icons.error, color: Colors.red);
+                    }
+                  },
+                ),
               );
             },
           );

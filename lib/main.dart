@@ -4,6 +4,7 @@ import 'package:loczy/pages/ana_sayfa.dart';
 import 'package:loczy/pages/giris.dart';
 import 'package:loczy/theme.dart';
 import 'package:loczy/config_getter.dart';
+import 'dart:io';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,6 +64,16 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<void> _logout() async {
     final prefs = await SharedPreferences.getInstance();
+    
+    // Remove the saved profile photo
+    final profilePhotoPath = prefs.getString('user_profile_photo_path');
+    if (profilePhotoPath != null) {
+      final file = File(profilePhotoPath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    }
+
     await prefs.clear();
     _updateLoginStatus(false);
   }
