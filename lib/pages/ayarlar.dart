@@ -49,18 +49,18 @@ class _AyarlarPageState extends State<AyarlarPage> {
               // Tema seçenekleri sayfasına yönlendirme
             },
           ),
-          ListTile(
+            ListTile(
             leading: Icon(Icons.exit_to_app, color: Colors.red),
             title: Text(
               'Çıkış',
               style: TextStyle(color: Colors.red),
             ),
-            onTap: () async {
-              await widget.logout();
+            onTap: () {
+              widget.logout();
               Navigator.of(context).pop();
-              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => MainScreen()));
+              Navigator.pushReplacement(context,MaterialPageRoute(builder: (context) => MainScreen()));
             },
-          ),
+            ),
         ],
       ),
     );

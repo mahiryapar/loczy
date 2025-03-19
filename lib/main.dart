@@ -75,6 +75,7 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     await prefs.clear();
+
     _updateLoginStatus(false);
   }
 
