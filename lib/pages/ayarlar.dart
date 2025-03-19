@@ -55,8 +55,8 @@ class _AyarlarPageState extends State<AyarlarPage> {
               'Çıkış',
               style: TextStyle(color: Colors.red),
             ),
-            onTap: () {
-              widget.logout();
+            onTap: () async {
+              await widget.logout();
               Navigator.of(context).pop();
               Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => MainScreen()));
             },
