@@ -161,7 +161,7 @@ class _ProfilePageState extends State<ProfilePage> {
       for (var item in data) {
         final post = {
           'id': item['id'],
-          'video_foto_url': item['video_foto_url']
+          'thumbnail_url': item['thumbnail_url']
         };
         posts.add(post);
       }
@@ -203,30 +203,11 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   );
                 },
-                child: FutureBuilder<http.Response>(
-                  future: http.get(
-                    Uri.parse('$apiUrl/get_files.php?fileurl=${posts[index]['video_foto_url']}'),
-                    headers: {
-                      'Authorization': 'Bearer $bearerToken',
-                      'Content-Type': 'application/json',
-                    },
-                  ),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return Center(child: CircularProgressIndicator());
-                    } else if (snapshot.hasError) {
-                      return Icon(Icons.error, color: Colors.red);
-                    } else if (snapshot.hasData && snapshot.data!.statusCode == 200) {
-                      return Image.memory(
-                        snapshot.data!.bodyBytes,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(Icons.error, color: Colors.red);
-                        },
-                      );
-                    } else {
-                      return Icon(Icons.error, color: Colors.red);
-                    }
+                child: Image.network(
+                  '${posts[index]['thumbnail_url']}',
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Icon(Icons.error, color: Colors.red);
                   },
                 ),
               );

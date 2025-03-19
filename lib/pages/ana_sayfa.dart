@@ -195,9 +195,17 @@ class _AnaSayfaState extends State<AnaSayfa> {
   }
 }
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
-    return Center(child: Text('Ana Sayfa', style: TextStyle(fontSize: 20)));
+    return Center(child: Text('Ana Sayfa'));
   }
 }
+
+
+
