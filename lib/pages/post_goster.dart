@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:loczy/config_getter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
+import 'package:loczy/pages/yorumlar_panel.dart';
 
 class PostGosterPage extends StatelessWidget {
   final int postId;
@@ -59,29 +60,29 @@ class PostGosterPage extends StatelessWidget {
               ],
             ),
           ),
-            Divider(color: const Color(0xFFD06100), thickness: 2, height: 0),
-            Stack(
+          Divider(color: const Color(0xFFD06100), thickness: 2, height: 0),
+          Stack(
             children: [
               isVideo
-                ? VideoPlayerWidget(url: postUrl)
-                : Image.network(
-                  postUrl,
-                  fit: BoxFit.contain,
-                  width: double.infinity,
-                  errorBuilder: (context, error, stackTrace) {
-                  return Icon(Icons.error, color: Colors.red);
-                  },
-                ),
+                  ? VideoPlayerWidget(url: postUrl)
+                  : Image.network(
+                      postUrl,
+                      fit: BoxFit.contain,
+                      width: double.infinity,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Icon(Icons.error, color: Colors.red);
+                      },
+                    ),
               Positioned.fill(
-              child: IgnorePointer(
-                child: Container(
-                color: Colors.transparent,
+                child: IgnorePointer(
+                  child: Container(
+                    color: Colors.transparent,
+                  ),
                 ),
-              ),
               ),
             ],
-            ),
-            Divider(color: const Color(0xFFD06100), thickness: 2, height: 0),
+          ),
+          Divider(color: const Color(0xFFD06100), thickness: 2, height: 0),
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -99,7 +100,21 @@ class PostGosterPage extends StatelessWidget {
                           style: TextStyle(fontSize: 16),
                         ),
                         SizedBox(width: 16),
-                        Icon(Icons.comment, color: Colors.grey),
+                        IconButton(
+                          icon: Icon(Icons.comment, color: Colors.grey),
+                          onPressed: () {
+                            showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.vertical(
+                                    top: Radius.circular(20)),
+                              ),
+                              builder: (context) =>
+                                  YorumlarPanel(postId: postId),
+                            );
+                          },
+                        ),
                         SizedBox(width: 8),
                         Text(
                           '${postDetails['yorum_sayisi'] ?? 0}',
@@ -200,6 +215,7 @@ class VideoPlayerWidget extends StatefulWidget {
 
 class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   late VideoPlayerController _controller;
+  bool _isMuted = false;
 
   @override
   void initState() {
@@ -216,7 +232,8 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         });
       _controller.addListener(() {
         if (_controller.value.hasError) {
-          debugPrint('Video oynatılamadı: ${_controller.value.errorDescription}');
+          debugPrint(
+              'Video oynatılamadı: ${_controller.value.errorDescription}');
         }
       });
     } catch (e) {
@@ -233,16 +250,58 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   }
 
   @override
- Widget build(BuildContext context) {
-    double screenWidth = MediaQuery.of(context).size.width; // Ekran genişliği
-    debugPrint("Video Aspect Ratio: ${_controller.value.aspectRatio}");
+  @override
+  Widget build(BuildContext context) {
+    double screenWidth = MediaQuery.of(context).size.width;
     return _controller.value.isInitialized
-        ? Container(
-          width: screenWidth,
-          height: screenWidth / _controller.value.aspectRatio,
-          child: AspectRatio(
-            aspectRatio: _controller.value.aspectRatio,
-            child: VideoPlayer(_controller)))
-        : const Center(child: CircularProgressIndicator());
+        ? Column(
+            children: [
+              Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  AspectRatio(
+                    aspectRatio: _controller.value.aspectRatio,
+                    child: VideoPlayer(_controller),
+                  ),
+                  Positioned(
+                    bottom: 8,
+                    right: 8,
+                    child: IconButton(
+                      icon: Icon(
+                        _isMuted ? Icons.volume_off : Icons.volume_up,
+                        color: Colors.white,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _isMuted = !_isMuted;
+                          _controller.setVolume(_isMuted ? 0 : 1);
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              VideoProgressIndicator(
+                _controller,
+                allowScrubbing: true,
+                colors: VideoProgressColors(
+                  playedColor: const Color(0xFFD06100),
+                  bufferedColor: Colors.grey,
+                  backgroundColor: Colors.black12,
+                ),
+              ),
+            ],
+          )
+        : Column(
+            children: [
+              SizedBox(height: 60),
+              const Center(child: CircularProgressIndicator()),
+              SizedBox(height: 60),
+            ],
+          );
   }
 }
+
+
+
+

@@ -24,6 +24,20 @@ class _ProfilePageState extends State<ProfilePage> {
   String _bio = '';
   final apiUrl = ConfigLoader.apiUrl;
   final bearerToken = ConfigLoader.bearerToken;
+  bool _isRefreshing = false;
+
+  Future<void> _refreshPage() async {
+    setState(() {
+      _isRefreshing = true;
+    });
+
+    // Buraya veri yenileme kodunu ekleyebilirsin
+    await Future.delayed(Duration(seconds: 2)); // Simülasyon
+
+    setState(() {
+      _isRefreshing = false;
+    });
+  }
 
   @override
   void initState() {
@@ -39,7 +53,7 @@ class _ProfilePageState extends State<ProfilePage> {
           (prefs.getString('user_soyisim') ?? 'Null');
       _following = prefs.getInt('user_takip_edilenler') ?? 0;
       _followers = prefs.getInt('user_takipci') ?? 0;
-      _bio = prefs.getString('bio') ?? 'Biyografi';
+      _bio = prefs.getString('biyografi') ?? '';
       _pp_path = prefs.getString('user_profile_photo_path') ?? '';
       _isLoading = false;
     });
@@ -218,39 +232,40 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.only(
-                    top: 60.0), // Sayfayı üstten marginleme
-                child: Column(
-                  children: [
-                    _buildProfileHeader(),
-                    Divider(
-                      color: const Color(0xFFD06100),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: _buildPostsGrid(),
-                    ),
-                  ],
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    body: RefreshIndicator(
+      onRefresh: _refreshPage,
+      displacement: 100.0,
+      child: _isLoading
+          ? ListView(
+              physics: AlwaysScrollableScrollPhysics(),
+              children: [Center(child: CircularProgressIndicator())],
+            )
+          : ListView(
+              physics: AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(top: 60.0),
+              children: [
+                _buildProfileHeader(),
+                Divider(color: const Color(0xFFD06100)),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: _buildPostsGrid(),
                 ),
-              ),
+              ],
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => AyarlarPage(logout: widget.logout,)),
-          );
-        },
-        backgroundColor: const Color(0xFFD06100),
-        child: Icon(Icons.settings),
-      ),
-    );
-  }
+    ),
+    floatingActionButton: FloatingActionButton(
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => AyarlarPage(logout: widget.logout)),
+        );
+      },
+      backgroundColor: const Color(0xFFD06100),
+      child: Icon(Icons.settings),
+    ),
+  );
+}
 }

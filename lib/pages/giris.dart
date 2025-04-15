@@ -61,6 +61,7 @@ class _KaydolGirisState extends State<KaydolGiris> {
           await prefs.setString('user_hesap_turu', responseData['hesap_turu']);
           await prefs.setString('user_pp_url', responseData['profil_fotosu_url']);
           await prefs.setInt('user_takipci', responseData['takipci']);
+            await prefs.setString('biyografi', responseData['biyografi'] ?? '');
           await prefs.setInt('user_takip_edilenler', responseData['takip_edilenler']);
           final profilePhotoResponse = await http.get(
             Uri.parse('$apiUrl/get_files.php?fileurl=${(responseData['profil_fotosu_url'])}'), headers: {
