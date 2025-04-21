@@ -28,16 +28,10 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _isRefreshing = false;
 
   Future<void> _refreshPage() async {
-    setState(() {
-      _isRefreshing = true;
-    });
-
-    // Buraya veri yenileme kodunu ekleyebilirsin
-    await Future.delayed(Duration(seconds: 2)); // Simülasyon
-
-    setState(() {
-      _isRefreshing = false;
-    });
+    // Reload profile data from SharedPreferences and update the state
+    await _loadProfileData();
+    // Trigger a rebuild to refresh the posts grid as well
+    setState(() {});
   }
 
   @override
@@ -108,7 +102,12 @@ class _ProfilePageState extends State<ProfilePage> {
                     Spacer(),
                     CircleAvatar(
                       radius: 40,
-                      backgroundImage: FileImage(File(_pp_path)), // Profil fotoğrafı
+                      backgroundImage: _pp_path.isNotEmpty
+                  ? (_pp_path.startsWith('http')
+                      ? NetworkImage(_pp_path)
+                      : (File(_pp_path).existsSync() ? FileImage(File(_pp_path)) : null)
+                    ) as ImageProvider? // Cast to nullable ImageProvider
+                  : null, // Profil fotoğrafı
                     ),
                   ],
                 ),
