@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'ayarlar.dart';
 import 'package:loczy/config_getter.dart';
 import 'post_goster.dart';
+import 'profile_edit.dart';
 
 class ProfilePage extends StatefulWidget {
   final Function logout;
@@ -119,16 +120,22 @@ class _ProfilePageState extends State<ProfilePage> {
                   children: [
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {},
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFD06100),
-                          foregroundColor: const Color(0xFFF2E9E9),
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 30, vertical: 10),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                        ),
-                        child: Text('Profilim'),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => ProfileEditPage()),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFD06100),
+                      foregroundColor: const Color(0xFFF2E9E9),
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 30, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: Text('Profilim'),
                       ),
                     ),
                     SizedBox(width: 16),

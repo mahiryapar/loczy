@@ -6,15 +6,27 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 import 'package:loczy/pages/yorumlar_panel.dart';
 
-class PostGosterPage extends StatelessWidget {
+class PostGosterPage extends StatefulWidget {
   final int postId;
 
   const PostGosterPage({super.key, required this.postId});
 
+  @override
+  State<PostGosterPage> createState() => _PostGosterPageState();
+}
+
+class _PostGosterPageState extends State<PostGosterPage> {
+  bool likechecked = false;
+  bool isLiked = false;
+  int begeni_sayisi = 0;
+
+  bool saveChecked = false;
+  bool isSaved = false;
+
   Future<Map<String, dynamic>> _fetchPostDetails() async {
     final response = await http.get(
       Uri.parse(
-          '${ConfigLoader.apiUrl}/routers/posts.php?id=${postId.toString()}'),
+          '${ConfigLoader.apiUrl}/routers/posts.php?id=${widget.postId}'),
       headers: {
         'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
         'Content-Type': 'application/json',
@@ -23,6 +35,54 @@ class PostGosterPage extends StatelessWidget {
 
     if (response.statusCode == 200) {
       Map<String, dynamic> data = jsonDecode(response.body);
+      begeni_sayisi = data['begeni_sayisi'] ?? 0;
+
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId')?.toString() ?? '';
+
+      // --- LIKE STATUS ---
+      final likeResponse = await http.get(
+        Uri.parse(
+            '${ConfigLoader.apiUrl}/routers/post_likes.php?post_id=${widget.postId}&user_id=$userId'),
+        headers: {
+          'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+          'Content-Type': 'application/json',
+        },
+      );
+      if (likeResponse.statusCode == 200) {
+        final likeData = jsonDecode(likeResponse.body);
+        final likeStatus = likeData['status'];
+        if (!likechecked) {
+          setState(() {
+            likechecked = true;
+            isLiked = (likeStatus == 'liked');
+          });
+        }
+      }
+
+      // --- SAVE STATUS ---
+      if (!saveChecked) {
+        final saveResponse = await http.get(
+          Uri.parse(
+              '${ConfigLoader.apiUrl}/routers/saves.php?post_id=${widget.postId}&user_id=$userId'),
+          headers: {
+            'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+            'Content-Type': 'application/json',
+          },
+        );
+        if (saveResponse.statusCode == 200) {
+          final saveData = jsonDecode(saveResponse.body);
+          final saveStatus = saveData['status'];
+          print('Save status: $saveStatus');
+          setState(() {
+            saveChecked = true;
+            isSaved = (saveStatus == 'saved');
+          });
+        } else {
+          print('Failed to fetch save status: ${saveResponse.body}');
+        }
+      }
+
       return data;
     } else {
       throw Exception('Failed to load post details');
@@ -93,12 +153,53 @@ class PostGosterPage extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.thumb_up, color: Colors.grey),
-                        SizedBox(width: 8),
-                        Text(
-                          '${postDetails['begeni_sayisi'] ?? 0}',
-                          style: TextStyle(fontSize: 16),
+                        // LIKE BUTTON
+                        IconButton(
+                          icon: Icon(
+                            Icons.thumb_up,
+                            color: isLiked ? Colors.red : Colors.grey,
+                          ),
+                          onPressed: () async {
+                            final headers = {
+                              'Authorization':
+                                  'Bearer ${ConfigLoader.bearerToken}',
+                              'Content-Type': 'application/json',
+                            };
+                            SharedPreferences prefs =
+                                await SharedPreferences.getInstance();
+                            final uid = prefs.getInt('userId');
+
+                            if (isLiked) {
+                              final url = Uri.parse(
+                                  '${ConfigLoader.apiUrl}/routers/post_likes.php?post_id=${widget.postId}&user_id=$uid');
+                              final resp = await http.delete(url,
+                                  headers: headers);
+                              if (resp.statusCode == 200) {
+                                setState(() {
+                                  isLiked = false;
+                                  begeni_sayisi--;
+                                });
+                              }
+                            } else {
+                              final url = Uri.parse(
+                                  '${ConfigLoader.apiUrl}/routers/post_likes.php');
+                              final resp = await http.post(url,
+                                  headers: headers,
+                                  body: jsonEncode({
+                                    'post_id': widget.postId,
+                                    'begenen_id': uid
+                                  }));
+                              if (resp.statusCode == 200) {
+                                setState(() {
+                                  isLiked = true;
+                                  begeni_sayisi++;
+                                });
+                              }
+                            }
+                          },
                         ),
+                        SizedBox(width: 8),
+                        Text('$begeni_sayisi'),
                         SizedBox(width: 16),
                         IconButton(
                           icon: Icon(Icons.comment, color: Colors.grey),
@@ -111,7 +212,7 @@ class PostGosterPage extends StatelessWidget {
                                     top: Radius.circular(20)),
                               ),
                               builder: (context) =>
-                                  YorumlarPanel(postId: postId),
+                                  YorumlarPanel(postId: widget.postId),
                             );
                           },
                         ),
@@ -131,10 +232,49 @@ class PostGosterPage extends StatelessWidget {
                     ),
                     Row(
                       children: [
+                        // SAVE BUTTON
                         IconButton(
-                          icon: Icon(Icons.attach_file, color: Colors.grey),
-                          onPressed: () {
-                            // Save functionality here
+                          icon: Icon(
+                            isSaved ? Icons.bookmark : Icons.bookmark_border,
+                            color: isSaved ? const Color(0xFFD06100) : Colors.grey,
+                          ),
+                          onPressed: () async {
+                            final headers = {
+                              'Authorization':
+                                  'Bearer ${ConfigLoader.bearerToken}',
+                              'Content-Type': 'application/json',
+                            };
+                            SharedPreferences prefs =
+                                await SharedPreferences.getInstance();
+                            final uid = prefs.getInt('userId');
+
+                            if (isSaved) {
+                              // unsave
+                              final url = Uri.parse(
+                                  '${ConfigLoader.apiUrl}/routers/saves.php?post_id=${widget.postId}&user_id=$uid');
+                              final resp =
+                                  await http.delete(url, headers: headers);
+                              if (resp.statusCode == 200) {
+                                setState(() {
+                                  isSaved = false;
+                                });
+                              }
+                            } else {
+                              // save
+                              final url = Uri.parse(
+                                  '${ConfigLoader.apiUrl}/routers/saves.php');
+                              final resp = await http.post(url,
+                                  headers: headers,
+                                  body: jsonEncode({
+                                    'post_id': widget.postId,
+                                    'kaydeden_id': uid
+                                  }));
+                              if (resp.statusCode == 200) {
+                                setState(() {
+                                  isSaved = true;
+                                });
+                              }
+                            }
                           },
                         ),
                       ],
@@ -158,8 +298,8 @@ class PostGosterPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return FutureBuilder<String>(
       future: _getNickname(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+      builder: (context, nickSn) {
+        if (nickSn.connectionState == ConnectionState.waiting) {
           return Scaffold(
             appBar: AppBar(
               title: Text('Yükleniyor...'),
@@ -167,16 +307,16 @@ class PostGosterPage extends StatelessWidget {
             ),
             body: Center(child: CircularProgressIndicator()),
           );
-        } else if (snapshot.hasError) {
+        } else if (nickSn.hasError) {
           return Scaffold(
             appBar: AppBar(
               title: Text('Hata'),
               backgroundColor: const Color(0xFFD06100),
             ),
-            body: Center(child: Text('Error: ${snapshot.error}')),
+            body: Center(child: Text('Error: ${nickSn.error}')),
           );
         } else {
-          final nickname = snapshot.data!;
+          final nickname = nickSn.data!;
           return Scaffold(
             appBar: AppBar(
               title: Text(nickname),
@@ -184,16 +324,15 @@ class PostGosterPage extends StatelessWidget {
             ),
             body: FutureBuilder<Map<String, dynamic>>(
               future: _fetchPostDetails(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+              builder: (context, postSn) {
+                if (postSn.connectionState == ConnectionState.waiting) {
                   return Center(child: CircularProgressIndicator());
-                } else if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                } else if (!snapshot.hasData) {
+                } else if (postSn.hasError) {
+                  return Center(child: Text('Error: ${postSn.error}'));
+                } else if (!postSn.hasData) {
                   return Center(child: Text('Post bulunamadı.'));
                 } else {
-                  final postDetails = snapshot.data!;
-                  return _buildPostContent(context, postDetails);
+                  return _buildPostContent(context, postSn.data!);
                 }
               },
             ),
@@ -203,7 +342,6 @@ class PostGosterPage extends StatelessWidget {
     );
   }
 }
-
 class VideoPlayerWidget extends StatefulWidget {
   final String url;
 
@@ -252,7 +390,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   @override
   @override
   Widget build(BuildContext context) {
-    double screenWidth = MediaQuery.of(context).size.width;
     return _controller.value.isInitialized
         ? Column(
             children: [
@@ -301,7 +438,3 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
           );
   }
 }
-
-
-
-
