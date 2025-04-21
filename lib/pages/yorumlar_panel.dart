@@ -194,7 +194,7 @@ class _YorumlarPanelState extends State<YorumlarPanel> {
       expand: false,
       builder: (context, scrollController) {
         return MediaQuery.removeViewInsets(
-          removeBottom: true,
+          removeBottom: false,
           context: context,
           child: FutureBuilder<List<Yorum>>(
             future: _yorumlarFuture,
@@ -448,68 +448,85 @@ class _YorumlarPanelState extends State<YorumlarPanel> {
                         },
                       ),
                     ),
-                    if (replyingToUsername != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(
+                    AnimatedPadding(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOut,
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).viewInsets.bottom,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (replyingToUsername != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              children: [
+                                Text('$replyingToUsername kişisine yanıt veriyorsunuz'),
+                                const Spacer(),
+                                IconButton(
+                                  icon: const Icon(Icons.close),
+                                  onPressed: () {
+                                    setState(() {
+                                      replyingTo = null;
+                                      replyingToUsername = null;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        Row(
                           children: [
-                            Text('$replyingToUsername kişisine yanıt veriyorsunuz'),
-                            const Spacer(),
-                            IconButton(
-                              icon: const Icon(Icons.close),
-                              onPressed: () {
-                                setState(() {
-                                  replyingTo = null;
-                                  replyingToUsername = null;
-                                });
+                            Expanded(
+                              child: TextField(
+                                controller: _yorumController,
+                                decoration: InputDecoration(
+                                  hintText: "Yorum yaz...",
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  contentPadding:
+                                      const EdgeInsets.symmetric(horizontal: 12),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: () async {
+                                if (_yorumController.text.isEmpty) return;
+                                final prefs = await SharedPreferences.getInstance();
+                                final userId = prefs.getInt('userId') ?? 0;
+                                try {
+                                  await postYorum(_yorumController.text, userId);
+                                  _yorumController.clear();
+                                } catch (_) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Yorum gönderilemedi')),
+                                  );
+                                }
                               },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFD06100),
+                                foregroundColor: const Color(0xFFF2E9E9),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text("Gönder"),
                             ),
                           ],
                         ),
-                      ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _yorumController,
-                            decoration: InputDecoration(
-                              hintText: "Yorum yaz...",
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: () async {
-                            if (_yorumController.text.isEmpty) return;
-                            final prefs = await SharedPreferences.getInstance();
-                            final userId = prefs.getInt('userId') ?? 0;
-                            try {
-                              await postYorum(_yorumController.text, userId);
-                              _yorumController.clear();
-                            } catch (_) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Yorum gönderilemedi')),
-                              );
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFD06100),
-                            foregroundColor: const Color(0xFFF2E9E9),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: const Text("Gönder"),
-                        ),
                       ],
                     ),
-                  ],
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+    },
+  );
   }
 }
