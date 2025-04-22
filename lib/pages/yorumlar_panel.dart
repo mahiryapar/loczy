@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:loczy/config_getter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'kullanici_goster.dart'; // Import the KullaniciGosterPage
 
 class Yorum {
   final int id;
@@ -235,10 +236,9 @@ class _YorumlarPanelState extends State<YorumlarPanel> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     GestureDetector(
-                                      onTap: () => Navigator.pushNamed(
+                                      onTap: () => Navigator.push( // Navigate to KullaniciGosterPage
                                         context,
-                                        '/kullanici_goruntule',
-                                        arguments: y.yazanId,
+                                        MaterialPageRoute(builder: (context) => KullaniciGosterPage(userId: y.yazanId)),
                                       ),
                                       child: CircleAvatar(
                                         backgroundImage: NetworkImage(y.profileImageUrl),
@@ -253,10 +253,9 @@ class _YorumlarPanelState extends State<YorumlarPanel> {
                                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                             children: [
                                               GestureDetector(
-                                                onTap: () => Navigator.pushNamed(
+                                                onTap: () => Navigator.push( // Navigate to KullaniciGosterPage
                                                   context,
-                                                  '/kullanici_goruntule',
-                                                  arguments: y.yazanId,
+                                                  MaterialPageRoute(builder: (context) => KullaniciGosterPage(userId: y.yazanId)),
                                                 ),
                                                 child: Text(y.username),
                                               ),
@@ -353,10 +352,9 @@ class _YorumlarPanelState extends State<YorumlarPanel> {
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
                                                 GestureDetector(
-                                                  onTap: () => Navigator.pushNamed(
+                                                  onTap: () => Navigator.push( // Navigate to KullaniciGosterPage
                                                     context,
-                                                    '/kullanici_goruntule',
-                                                    arguments: r.yazanId,
+                                                    MaterialPageRoute(builder: (context) => KullaniciGosterPage(userId: r.yazanId)),
                                                   ),
                                                   child: CircleAvatar(
                                                     radius: 14,
@@ -372,10 +370,9 @@ class _YorumlarPanelState extends State<YorumlarPanel> {
                                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                                         children: [
                                                           GestureDetector(
-                                                            onTap: () => Navigator.pushNamed(
+                                                            onTap: () => Navigator.push( // Navigate to KullaniciGosterPage
                                                               context,
-                                                              '/kullanici_goruntule',
-                                                              arguments: r.yazanId,
+                                                              MaterialPageRoute(builder: (context) => KullaniciGosterPage(userId: r.yazanId)),
                                                             ),
                                                             child: Text(r.username, style: const TextStyle(fontSize: 12)),
                                                           ),

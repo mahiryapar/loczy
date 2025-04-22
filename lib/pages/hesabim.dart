@@ -28,9 +28,9 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _isRefreshing = false;
 
   Future<void> _refreshPage() async {
-    // Reload profile data from SharedPreferences and update the state
+    _isRefreshing = true;
     await _loadProfileData();
-    // Trigger a rebuild to refresh the posts grid as well
+    _isRefreshing = false;
     setState(() {});
   }
 

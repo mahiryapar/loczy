@@ -42,7 +42,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       _phoneC.text = prefs.getString('user_number') ?? '';
       _nicknameC.text = prefs.getString('userNickname') ?? '';
       _ppPath = prefs.getString('user_profile_photo_path') ?? '';
-      _isPrivate = prefs.getString('hesap_turu') == "private";
+      _isPrivate = prefs.getString('user_hesap_turu') == "private";
       uid = prefs.getInt('userId') ?? 0;
       _loading = false;
     });
@@ -194,7 +194,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       await prefs.setString('user_number', _phoneC.text.replaceAll(RegExp(r'\D'), '')); // Save cleaned number
       await prefs.setString('userNickname', _nicknameC.text);
       await prefs.setString('user_profile_photo_path', savedPhotoUrl);
-      await prefs.setString('hesap_turu', _isPrivate ? "private" : "public");
+      await prefs.setString('user_hesap_turu', _isPrivate ? "private" : "public");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Profil başarıyla güncellendi!')),
       );

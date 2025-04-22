@@ -73,7 +73,7 @@ class _PostGosterPageState extends State<PostGosterPage> {
         if (saveResponse.statusCode == 200) {
           final saveData = jsonDecode(saveResponse.body);
           final saveStatus = saveData['status'];
-          print('Save status: $saveStatus');
+          // print('Save status: $saveStatus'); // Debug print
           setState(() {
             saveChecked = true;
             isSaved = (saveStatus == 'saved');
@@ -83,16 +83,35 @@ class _PostGosterPageState extends State<PostGosterPage> {
         }
       }
 
+      // --- FETCH POST CREATOR NICKNAME ---
+      final postCreatorId = data['atan_id'];
+      if (postCreatorId != null) {
+        final userResponse = await http.get(
+          Uri.parse('${ConfigLoader.apiUrl}/routers/users.php?id=$postCreatorId'),
+          headers: {
+            'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+            'Content-Type': 'application/json',
+          },
+        );
+        if (userResponse.statusCode == 200) {
+          final userData = jsonDecode(userResponse.body);
+          data['creator_nickname'] = userData['nickname'] ?? 'Bilinmeyen Kullanıcı';
+        } else {
+          print('Failed to fetch user details: ${userResponse.body}');
+          data['creator_nickname'] = 'Bilinmeyen Kullanıcı';
+        }
+      } else {
+         data['creator_nickname'] = 'Bilinmeyen Kullanıcı';
+      }
+
+
       return data;
     } else {
       throw Exception('Failed to load post details');
     }
   }
 
-  Future<String> _getNickname() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    return '@${prefs.getString('userNickname')}';
-  }
+  // Removed _getNickname function
 
   Widget _buildPostContent(
       BuildContext context, Map<String, dynamic> postDetails) {
@@ -296,49 +315,42 @@ class _PostGosterPageState extends State<PostGosterPage> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<String>(
-      future: _getNickname(),
-      builder: (context, nickSn) {
-        if (nickSn.connectionState == ConnectionState.waiting) {
-          return Scaffold(
-            appBar: AppBar(
-              title: Text('Yükleniyor...'),
-              backgroundColor: const Color(0xFFD06100),
-            ),
-            body: Center(child: CircularProgressIndicator()),
-          );
-        } else if (nickSn.hasError) {
-          return Scaffold(
-            appBar: AppBar(
-              title: Text('Hata'),
-              backgroundColor: const Color(0xFFD06100),
-            ),
-            body: Center(child: Text('Error: ${nickSn.error}')),
-          );
-        } else {
-          final nickname = nickSn.data!;
-          return Scaffold(
-            appBar: AppBar(
-              title: Text(nickname),
-              backgroundColor: const Color(0xFFD06100),
-            ),
-            body: FutureBuilder<Map<String, dynamic>>(
-              future: _fetchPostDetails(),
-              builder: (context, postSn) {
-                if (postSn.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator());
-                } else if (postSn.hasError) {
-                  return Center(child: Text('Error: ${postSn.error}'));
-                } else if (!postSn.hasData) {
-                  return Center(child: Text('Post bulunamadı.'));
-                } else {
-                  return _buildPostContent(context, postSn.data!);
-                }
-              },
-            ),
-          );
-        }
-      },
+    return Scaffold(
+      appBar: AppBar(
+        title: FutureBuilder<Map<String, dynamic>>(
+          future: _fetchPostDetails(), // Fetch details once
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Text('Yükleniyor...');
+            } else if (snapshot.hasError) {
+              return Text('Hata');
+            } else if (snapshot.hasData) {
+              // Use the fetched nickname
+              return Text('@'+snapshot.data!['creator_nickname'] ?? 'Kullanıcı');
+            } else {
+              return Text('Kullanıcı'); // Default title
+            }
+          },
+        ),
+        backgroundColor: const Color(0xFFD06100),
+      ),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _fetchPostDetails(), // Use the same future
+        builder: (context, postSn) {
+          if (postSn.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          } else if (postSn.hasError) {
+            // Display error in the body, AppBar shows 'Hata'
+            return Center(child: Text('Error: ${postSn.error}'));
+          } else if (!postSn.hasData || postSn.data == null) {
+             // Handle case where data is null or empty
+            return Center(child: Text('Post bulunamadı.'));
+          } else {
+            // Pass the fetched data to build the content
+            return _buildPostContent(context, postSn.data!);
+          }
+        },
+      ),
     );
   }
 }
