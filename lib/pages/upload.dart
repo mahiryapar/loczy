@@ -39,8 +39,31 @@ class _UploadPageState extends State<UploadPage> {
 
   Future<void> _pickMedia(ImageSource source) async {
     try {
-      // For now, only picking images. Video picking can be added later.
-      final XFile? pickedFile = await _picker.pickImage(source: source);
+      XFile? pickedFile;
+      if (source == ImageSource.camera) {
+        final choice = await showDialog<String>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Kamera Seçimi'),
+            content: Text('Fotoğraf mı video mu çekmek istersiniz?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, 'photo'), child: Text('Fotoğraf')),
+              TextButton(onPressed: () => Navigator.pop(context, 'video'), child: Text('Video')),
+            ],
+          ),
+        );
+
+        if (choice == 'photo') {
+          pickedFile = await _picker.pickImage(source: source);
+        } else if (choice == 'video') {
+          pickedFile = await _picker.pickVideo(source: source);
+        } else {
+          return; // User cancelled
+        }
+      } else {
+        pickedFile = await _picker.pickMedia();
+      }
+
       if (pickedFile != null) {
         setState(() {
           _mediaFile = pickedFile;
@@ -70,13 +93,11 @@ class _UploadPageState extends State<UploadPage> {
     }
   }
 
-  // Reusable file upload function
   Future<String?> _uploadFile(XFile file, String type) async {
     try {
       final apiUrl = await ConfigLoader.apiUrl;
       final bearerToken = await ConfigLoader.bearerToken;
       final uploadUri = Uri.parse('$apiUrl/upload.php');
-      // Add parameters specific to post uploads if needed by upload.php
       final uploadUriWithParams = uploadUri.replace(queryParameters: {
         'user_name': _userNickname,
       });
@@ -107,7 +128,6 @@ class _UploadPageState extends State<UploadPage> {
     }
   }
 
-
   Future<void> _submitPost() async {
     if (_mediaFile == null) {
       setState(() => _errorMessage = 'Lütfen bir medya dosyası seçin.');
@@ -117,15 +137,14 @@ class _UploadPageState extends State<UploadPage> {
       setState(() => _errorMessage = 'Lütfen bir thumbnail seçin.');
       return;
     }
-     if (_descriptionController.text.trim().isEmpty) {
+    if (_descriptionController.text.trim().isEmpty) {
       setState(() => _errorMessage = 'Lütfen bir açıklama girin.');
       return;
     }
     if (_userId == 0) {
-       setState(() => _errorMessage = 'Kullanıcı bilgileri yüklenemedi, lütfen tekrar deneyin.');
-       return;
+      setState(() => _errorMessage = 'Kullanıcı bilgileri yüklenemedi, lütfen tekrar deneyin.');
+      return;
     }
-
 
     setState(() {
       _isUploading = true;
@@ -134,29 +153,30 @@ class _UploadPageState extends State<UploadPage> {
 
     String? mediaUrl;
     String? thumbnailUrl;
+    String mediaType = 'image'; // Default to image
+
+    if (_mediaFile != null) {
+      final lowerCasePath = _mediaFile!.path.toLowerCase();
+      if (lowerCasePath.endsWith('.mp4') || lowerCasePath.endsWith('.mov') || lowerCasePath.endsWith('.avi') || lowerCasePath.endsWith('.wmv')) {
+        mediaType = 'video';
+      }
+    }
 
     try {
-      // 1. Upload Thumbnail
       thumbnailUrl = await _uploadFile(_thumbnailFile!, 'post_thumbnail');
       if (thumbnailUrl == null) {
-         // Error message already set in _uploadFile
-         setState(() => _isUploading = false);
-         return;
+        setState(() => _isUploading = false);
+        return;
       }
 
-      // 2. Upload Media
       mediaUrl = await _uploadFile(_mediaFile!, 'post_media');
-       if (mediaUrl == null) {
-         // Error message already set in _uploadFile
-         setState(() => _isUploading = false);
-         // Consider deleting the already uploaded thumbnail if media upload fails
-         return;
+      if (mediaUrl == null) {
+        setState(() => _isUploading = false);
+        return;
       }
 
-
-      // 3. Send Post Data to posts.php
       final apiUrl = await ConfigLoader.apiUrl;
-      final postsUri = Uri.parse('$apiUrl/routers/posts.php'); // Adjust endpoint if needed
+      final postsUri = Uri.parse('$apiUrl/routers/posts.php');
       final bearerToken = await ConfigLoader.bearerToken;
 
       final response = await http.post(
@@ -171,19 +191,17 @@ class _UploadPageState extends State<UploadPage> {
           'video_foto_url': mediaUrl,
           'thumbnail_url': thumbnailUrl,
           'gizlilik_turu': _privacy,
-          'konum': 'Konum Bilgisi Eklenecek', // Placeholder for location
-          // Add any other required fields for posts.php
+          'konum': 'Konum Bilgisi Eklenecek',
+          'media_type': mediaType,
         }),
       );
 
-      if (response.statusCode == 200 || response.statusCode == 201) { // Check for success codes
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = json.decode(response.body);
-        if (responseData['status'] == 'success' || responseData['status'] == 'created') { // Adjust based on API response
-          // Success
+        if (responseData['status'] == 'success' || responseData['status'] == 'created') {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Gönderi başarıyla paylaşıldı!')),
           );
-          // Reset form
           setState(() {
             _mediaFile = null;
             _thumbnailFile = null;
@@ -214,30 +232,54 @@ class _UploadPageState extends State<UploadPage> {
     super.dispose();
   }
 
+  bool _isMediaVideo(XFile? file) {
+    if (file == null) return false;
+    final lowerCasePath = file.path.toLowerCase();
+    return lowerCasePath.endsWith('.mp4') || lowerCasePath.endsWith('.mov') || lowerCasePath.endsWith('.avi') || lowerCasePath.endsWith('.wmv');
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Since this is part of AnaSayfa, we don't use a Scaffold here.
-    // Use padding to avoid overlap with the custom AppBar in AnaSayfa.
     return SingleChildScrollView(
-      padding: EdgeInsets.only(top: 70.0, left: 16.0, right: 16.0, bottom: 16.0), // Adjust top padding as needed
+      padding: EdgeInsets.only(top: 70.0, left: 16.0, right: 16.0, bottom: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('Yeni Gönderi Oluştur', style: Theme.of(context).textTheme.headlineSmall),
           SizedBox(height: 20),
 
-          // Media Selection
           Text('Medya Seç', style: Theme.of(context).textTheme.titleMedium),
           SizedBox(height: 8),
           Container(
-            height: 150,
+            height: 200,
+            width: double.infinity,
             decoration: BoxDecoration(
               border: Border.all(color: Colors.grey),
               borderRadius: BorderRadius.circular(8),
             ),
             child: _mediaFile == null
                 ? Center(child: Text('Medya seçilmedi'))
-                : Image.file(File(_mediaFile!.path), fit: BoxFit.cover),
+                : _isMediaVideo(_mediaFile)
+                    ? Center( // Display icon and filename for video
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.videocam, size: 50, color: Colors.grey[700]),
+                            SizedBox(height: 8),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                              child: Text(
+                                'Video Yüklendi: ${_mediaFile!.name}', // Show filename
+                                style: TextStyle(color: Colors.grey[700]),
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis, // Handle long filenames
+                                maxLines: 2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Image.file(File(_mediaFile!.path), fit: BoxFit.cover),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -256,8 +298,7 @@ class _UploadPageState extends State<UploadPage> {
           ),
           SizedBox(height: 20),
 
-          // Thumbnail Selection
-          Text('Thumbnail Seç', style: Theme.of(context).textTheme.titleMedium),
+          Text('Thumbnail Seç (Fotoğraf)', style: Theme.of(context).textTheme.titleMedium),
           SizedBox(height: 8),
           Container(
             height: 100,
@@ -287,7 +328,6 @@ class _UploadPageState extends State<UploadPage> {
           ),
           SizedBox(height: 20),
 
-          // Description
           TextField(
             controller: _descriptionController,
             decoration: InputDecoration(
@@ -298,13 +338,11 @@ class _UploadPageState extends State<UploadPage> {
           ),
           SizedBox(height: 20),
 
-          // Location (Placeholder)
           ListTile(
             leading: Icon(Icons.location_on),
             title: Text('Konum Ekle'),
             subtitle: Text('Yakında eklenecek...'),
             onTap: () {
-              // TODO: Implement Google Maps location picker
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Konum özelliği yakında eklenecektir.')),
               );
@@ -312,11 +350,9 @@ class _UploadPageState extends State<UploadPage> {
           ),
           SizedBox(height: 10),
 
-          // Privacy Info
           Text('Gizlilik: Bu gönderi "${_privacy == 'private' ? 'Gizli' : 'Herkese Açık'}" olarak paylaşılacak.', style: TextStyle(color: Colors.grey[700])),
           SizedBox(height: 20),
 
-          // Error Message
           if (_errorMessage.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 15.0),
@@ -327,7 +363,6 @@ class _UploadPageState extends State<UploadPage> {
               ),
             ),
 
-          // Upload Button
           ElevatedButton(
             onPressed: _isUploading ? null : _submitPost,
             style: ElevatedButton.styleFrom(
@@ -346,7 +381,7 @@ class _UploadPageState extends State<UploadPage> {
                   )
                 : Text('Paylaş'),
           ),
-          SizedBox(height: 50), // Add some bottom padding
+          SizedBox(height: 50),
         ],
       ),
     );

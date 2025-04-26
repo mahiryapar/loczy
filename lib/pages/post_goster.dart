@@ -400,53 +400,69 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   }
 
   @override
-  @override
   Widget build(BuildContext context) {
-    return _controller.value.isInitialized
-        ? Column(
+    if (!_controller.value.isInitialized) {
+      return Column(
+        children: [
+          SizedBox(height: 60),
+          const Center(child: CircularProgressIndicator()),
+          SizedBox(height: 60),
+        ],
+      );
+    }
+
+    // Calculate the aspect ratio and dimensions
+    final screenWidth = MediaQuery.of(context).size.width;
+    final videoAspectRatio = _controller.value.aspectRatio;
+    
+    // Calculate height based on aspect ratio
+    final videoHeight = screenWidth / videoAspectRatio;
+
+    return Column(
+      children: [
+        Container(
+          width: screenWidth,
+          height: videoHeight,
+          color: Colors.black,
+          child: Stack(
             children: [
-              Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  AspectRatio(
-                    aspectRatio: _controller.value.aspectRatio,
-                    child: VideoPlayer(_controller),
-                  ),
-                  Positioned(
-                    bottom: 8,
-                    right: 8,
-                    child: IconButton(
-                      icon: Icon(
-                        _isMuted ? Icons.volume_off : Icons.volume_up,
-                        color: Colors.white,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _isMuted = !_isMuted;
-                          _controller.setVolume(_isMuted ? 0 : 1);
-                        });
-                      },
-                    ),
-                  ),
-                ],
+              // Use a SizedBox with full dimensions to ensure video fills screen width
+              Center(
+                child: SizedBox(
+                  width: screenWidth,
+                  height: videoHeight,
+                  child: VideoPlayer(_controller),
+                ),
               ),
-              VideoProgressIndicator(
-                _controller,
-                allowScrubbing: true,
-                colors: VideoProgressColors(
-                  playedColor: const Color(0xFFD06100),
-                  bufferedColor: Colors.grey,
-                  backgroundColor: Colors.black12,
+              Positioned(
+                bottom: 8,
+                right: 8,
+                child: IconButton(
+                  icon: Icon(
+                    _isMuted ? Icons.volume_off : Icons.volume_up,
+                    color: Colors.white,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isMuted = !_isMuted;
+                      _controller.setVolume(_isMuted ? 0 : 1);
+                    });
+                  },
                 ),
               ),
             ],
-          )
-        : Column(
-            children: [
-              SizedBox(height: 60),
-              const Center(child: CircularProgressIndicator()),
-              SizedBox(height: 60),
-            ],
-          );
+          ),
+        ),
+        VideoProgressIndicator(
+          _controller,
+          allowScrubbing: true,
+          colors: VideoProgressColors(
+            playedColor: const Color(0xFFD06100),
+            bufferedColor: Colors.grey,
+            backgroundColor: Colors.black12,
+          ),
+        ),
+      ],
+    );
   }
 }
