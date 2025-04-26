@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:loczy/config_getter.dart';
 import 'post_goster.dart';
 import 'profile_edit.dart';
+import 'takip_listele.dart'; // Import the new page
 
 class KullaniciGosterPage extends StatefulWidget {
   final int userId; 
@@ -328,12 +329,28 @@ class _KullaniciGosterPageState extends State<KullaniciGosterPage> {
 
   void _navigateToFollowers() {
     print('Navigate to followers list for user ${widget.userId}');
-    // Navigator.push(context, MaterialPageRoute(builder: (context) => FollowersListPage(userId: widget.userId)));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TakipListelePage(
+          userId: widget.userId,
+          initialTabIndex: 1, // Index 1 for Followers tab
+        ),
+      ),
+    );
   }
 
   void _navigateToFollowing() {
     print('Navigate to following list for user ${widget.userId}');
-    // Navigator.push(context, MaterialPageRoute(builder: (context) => FollowingListPage(userId: widget.userId)));
+     Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TakipListelePage(
+          userId: widget.userId,
+          initialTabIndex: 0, // Index 0 for Following tab
+        ),
+      ),
+    );
   }
 
 

@@ -227,7 +227,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       ),
     );
     if (choice == 'remove') {
-      setState(() => _ppPath = '');
+      // Fetch the default photo URL and set it
+      final defaultPhotoUrl = await ConfigLoader.defaultProfilePhoto;
+      setState(() => _ppPath = defaultPhotoUrl);
     } else if (choice == 'upload') {
       try {
         final XFile? img = await _picker.pickImage(source: ImageSource.gallery);

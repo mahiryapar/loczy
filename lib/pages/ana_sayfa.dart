@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:loczy/pages/hesabim.dart';
 import 'package:loczy/pages/kesfet.dart';
@@ -19,6 +21,39 @@ class _AnaSayfaState extends State<AnaSayfa> {
   String _username = '@KullanıcıAdı'; // Varsayılan kullanıcı adı
   bool _showNotifications = false;
 
+  // Define the async logout function
+  Future<void> _logout() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.remove('userId');
+    await prefs.remove('userNickname');
+    await prefs.remove('user_isim');
+    await prefs.remove('user_soyisim');
+    await prefs.remove('user_mail');
+    await prefs.remove('user_number');
+    await prefs.remove('user_ev_konum');
+    await prefs.remove('user_hesap_turu');
+    await prefs.remove('user_pp_url');
+    await prefs.remove('user_takipci');
+    await prefs.remove('biyografi');
+    await prefs.remove('user_takip_edilenler');
+    // Also remove the downloaded profile photo if needed
+    String? photoPath = prefs.getString('user_profile_photo_path');
+    if (photoPath != null) {
+      try {
+        final file = File(photoPath);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (e) {
+        // Handle potential file deletion errors
+        print("Error deleting profile photo: $e");
+      }
+      await prefs.remove('user_profile_photo_path');
+    }
+    // Call the original logout function passed from MainScreen if needed
+    // This assumes the function passed to AnaSayfa primarily updates the UI state in MainScreen
+    widget.logout();
+  }
 
   void _loadUsername() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -38,7 +73,8 @@ class _AnaSayfaState extends State<AnaSayfa> {
       MessagesPage(),
       ExplorePage(),
       UploadPage(),
-      ProfilePage(logout: widget.logout),
+      // Pass the _logout function to ProfilePage
+      ProfilePage(logout: _logout),
     ];
   }
 

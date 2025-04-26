@@ -241,7 +241,11 @@ class _YorumlarPanelState extends State<YorumlarPanel> {
                                         MaterialPageRoute(builder: (context) => KullaniciGosterPage(userId: y.yazanId)),
                                       ),
                                       child: CircleAvatar(
-                                        backgroundImage: NetworkImage(y.profileImageUrl),
+                                        backgroundImage: NetworkImage(
+                                          y.profileImageUrl.isNotEmpty
+                                              ? y.profileImageUrl
+                                              : ConfigLoader.defaultProfilePhoto, // Use default if empty
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
@@ -358,7 +362,11 @@ class _YorumlarPanelState extends State<YorumlarPanel> {
                                                   ),
                                                   child: CircleAvatar(
                                                     radius: 14,
-                                                    backgroundImage: NetworkImage(r.profileImageUrl),
+                                                    backgroundImage: NetworkImage(
+                                                      r.profileImageUrl.isNotEmpty
+                                                          ? r.profileImageUrl
+                                                          : ConfigLoader.defaultProfilePhoto, // Use default if empty
+                                                    ),
                                                   ),
                                                 ),
                                                 const SizedBox(width: 8),
@@ -407,7 +415,7 @@ class _YorumlarPanelState extends State<YorumlarPanel> {
                                                               };
                                                               if (r.isLiked) {
                                                                 await http.delete(
-                                                                  Uri.parse('$apiurl/routers/comment_likes.php?comment_id=${r.id}&user_id=$uid'),
+                                                                  Uri.parse('$apiurl/routers/comment_likes.php?yorum_id=${r.id}&begenen_id=$uid'),
                                                                   headers: headers,
                                                                 );
                                                               } else {
@@ -415,7 +423,7 @@ class _YorumlarPanelState extends State<YorumlarPanel> {
                                                                   Uri.parse('$apiurl/routers/comment_likes.php'),
                                                                   headers: headers,
                                                                   body: json.encode({
-                                                                    'comment_id': r.id,
+                                                                    'yorum_id': r.id,
                                                                     'begenen_id': uid,
                                                                   }),
                                                                 );

@@ -7,6 +7,7 @@ import 'ayarlar.dart';
 import 'package:loczy/config_getter.dart';
 import 'post_goster.dart';
 import 'profile_edit.dart';
+import 'takip_listele.dart'; // Import TakipListelePage
 
 class ProfilePage extends StatefulWidget {
   final Function logout;
@@ -26,12 +27,20 @@ class _ProfilePageState extends State<ProfilePage> {
   final apiUrl = ConfigLoader.apiUrl;
   final bearerToken = ConfigLoader.bearerToken;
   bool _isRefreshing = false;
+  int _currentUserId = -1; // Add current user ID state
 
   Future<void> _refreshPage() async {
-    _isRefreshing = true;
-    await _loadProfileData();
-    _isRefreshing = false;
-    setState(() {});
+    // Prevent multiple refreshes at the same time
+    if (_isRefreshing) return;
+    setState(() {
+      _isRefreshing = true;
+      _isLoading = true; // Show loading indicator during refresh
+    });
+    await _loadProfileData(); // Fetch fresh data
+    setState(() {
+      _isRefreshing = false;
+      // _isLoading is set to false inside _loadProfileData
+    });
   }
 
   @override
@@ -42,16 +51,122 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _loadProfileData() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _name = (prefs.getString('user_isim') ?? 'Null') +
-          ' ' +
-          (prefs.getString('user_soyisim') ?? 'Null');
-      _following = prefs.getInt('user_takip_edilenler') ?? 0;
-      _followers = prefs.getInt('user_takipci') ?? 0;
-      _bio = prefs.getString('biyografi') ?? '';
-      _pp_path = prefs.getString('user_profile_photo_path') ?? '';
-      _isLoading = false;
-    });
+    _currentUserId = prefs.getInt('userId') ?? -1;
+
+    if (_currentUserId == -1) {
+      // Handle case where user ID is not found (e.g., logout or error)
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          // Optionally show an error message or navigate to login
+        });
+      }
+      return;
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$apiUrl/routers/users.php?id=$_currentUserId'),
+        headers: {
+          'Authorization': 'Bearer $bearerToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200 && mounted) {
+        final data = jsonDecode(response.body);
+
+        // Update state with fresh data from API
+        setState(() {
+          _name = (data['isim'] ?? 'Null') + ' ' + (data['soyisim'] ?? 'Null');
+          _following = data['takip_edilenler'] ?? 0;
+          _followers = data['takipci'] ?? 0;
+          _bio = data['biyografi'] ?? '';
+          _pp_path = data['profil_fotosu_url'] ?? '';
+          _isLoading = false;
+        });
+
+        // Update SharedPreferences with the fresh data
+        await prefs.setString('user_isim', data['isim'] ?? 'Null');
+        await prefs.setString('user_soyisim', data['soyisim'] ?? 'Null');
+        await prefs.setInt('user_takip_edilenler', data['takip_edilenler'] ?? 0);
+        await prefs.setInt('user_takipci', data['takipci'] ?? 0);
+        await prefs.setString('biyografi', data['biyografi'] ?? '');
+        await prefs.setString('user_profile_photo_path', data['profil_fotosu_url'] ?? '');
+        // Update other relevant fields if necessary (e.g., nickname, account type)
+        await prefs.setString('userNickname', data['nickname'] ?? '');
+        await prefs.setString('user_hesap_turu', data['hesap_turu'] ?? 'public');
+
+
+      } else {
+        // Fallback to SharedPreferences if API call fails
+        print('Failed to load profile data from API: ${response.statusCode}');
+        if (mounted) {
+           setState(() {
+            _name = (prefs.getString('user_isim') ?? 'Null') +
+                ' ' +
+                (prefs.getString('user_soyisim') ?? 'Null');
+            _following = prefs.getInt('user_takip_edilenler') ?? 0;
+            _followers = prefs.getInt('user_takipci') ?? 0;
+            _bio = prefs.getString('biyografi') ?? '';
+            _pp_path = prefs.getString('user_profile_photo_path') ?? '';
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Profil bilgileri güncellenemedi, eski veriler gösteriliyor.')),
+          );
+        }
+      }
+    } catch (e) {
+      // Handle network or other errors
+      print('Error loading profile data: $e');
+       if (mounted) {
+          setState(() {
+            // Fallback to SharedPreferences on error
+            _name = (prefs.getString('user_isim') ?? 'Null') +
+                ' ' +
+                (prefs.getString('user_soyisim') ?? 'Null');
+            _following = prefs.getInt('user_takip_edilenler') ?? 0;
+            _followers = prefs.getInt('user_takipci') ?? 0;
+            _bio = prefs.getString('biyografi') ?? '';
+            _pp_path = prefs.getString('user_profile_photo_path') ?? '';
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Profil bilgileri yüklenirken bir hata oluştu.')),
+          );
+       }
+    }
+  }
+
+  void _navigateToFollowingList() {
+    if (_currentUserId != -1) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TakipListelePage(
+            userId: _currentUserId,
+            initialTabIndex: 0, // Following tab
+            isCurrentUserList: true, // This is the current user's list
+          ),
+        ),
+      ).then((_) => _refreshPage()); // Refresh profile page after returning
+    }
+  }
+
+  void _navigateToFollowersList() {
+    if (_currentUserId != -1) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TakipListelePage(
+            userId: _currentUserId,
+            initialTabIndex: 1, // Followers tab
+            isCurrentUserList: true, // This is the current user's list
+          ),
+        ),
+      ).then((_) => _refreshPage()); // Refresh profile page after returning
+    }
   }
 
   Widget _buildProfileHeader() {
@@ -76,24 +191,30 @@ class _ProfilePageState extends State<ProfilePage> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Column(
-                              children: [
-                                Text('Takip', style: TextStyle(fontSize: 16)),
-                                Text('$_following',
-                                    style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold)),
-                              ],
+                            GestureDetector( // Wrap Following count
+                              onTap: _navigateToFollowingList,
+                              child: Column(
+                                children: [
+                                  Text('Takip', style: TextStyle(fontSize: 16)),
+                                  Text('$_following',
+                                      style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold)),
+                                ],
+                              ),
                             ),
                             SizedBox(width: 40),
-                            Column(
-                              children: [
-                                Text('Takipçi', style: TextStyle(fontSize: 16)),
-                                Text('$_followers',
-                                    style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold)),
-                              ],
+                            GestureDetector( // Wrap Followers count
+                              onTap: _navigateToFollowersList,
+                              child: Column(
+                                children: [
+                                  Text('Takipçi', style: TextStyle(fontSize: 16)),
+                                  Text('$_followers',
+                                      style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold)),
+                                ],
+                              ),
                             ),
                           ],
                         ),

@@ -55,10 +55,13 @@ class _AyarlarPageState extends State<AyarlarPage> {
               'Çıkış',
               style: TextStyle(color: Colors.red),
             ),
-            onTap: () {
-              widget.logout();
-              Navigator.of(context).pop();
-              Navigator.pushReplacement(context,MaterialPageRoute(builder: (context) => MainScreen()));
+            onTap: () async { // Make onTap async
+              await widget.logout(); // Await the logout function
+              // Navigate to MainScreen and remove all previous routes
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => MainScreen()),
+                (Route<dynamic> route) => false, // Remove all routes
+              );
             },
             ),
         ],
