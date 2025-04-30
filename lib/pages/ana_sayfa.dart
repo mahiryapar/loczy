@@ -7,6 +7,7 @@ import 'package:loczy/pages/mesajlar.dart';
 import 'package:loczy/pages/upload.dart';
 import 'package:marquee/marquee.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:loczy/pages/home_page.dart';
 
 class AnaSayfa extends StatefulWidget {
   final Function logout;
@@ -231,41 +232,4 @@ class _AnaSayfaState extends State<AnaSayfa> {
   }
 }
 
-class HomePage extends StatefulWidget {
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  bool _isRefreshing = false;
-
-  Future<void> _refreshPage() async {
-    setState(() {
-      _isRefreshing = true;
-    });
-
-    // Buraya veri yenileme kodunu ekleyebilirsin
-    await Future.delayed(Duration(seconds: 2)); // Simülasyon
-
-    setState(() {
-      _isRefreshing = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return RefreshIndicator(
-      displacement: 100.0, // Yenileme indikatörünü biraz daha aşağı alır
-      onRefresh: _refreshPage,
-      child: ListView(
-        physics: AlwaysScrollableScrollPhysics(), // Yukarı çekme için şart
-        children: [
-          SizedBox(height: 300),
-          Center(child: Text('Ana Sayfa')),
-          SizedBox(height: 1000), // Scroll olabilmesi için dummy content
-        ],
-      ),
-    );
-  }
-}
 

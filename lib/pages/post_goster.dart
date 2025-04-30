@@ -117,6 +117,7 @@ class _PostGosterPageState extends State<PostGosterPage> {
       BuildContext context, Map<String, dynamic> postDetails) {
     final postUrl = postDetails['video_foto_url'];
     final isVideo = postUrl.endsWith('.mp4');
+    final int portreMi = postDetails['portre_mi'] ?? 0; // Get portre_mi value
 
     return SingleChildScrollView(
       child: Column(
@@ -143,7 +144,7 @@ class _PostGosterPageState extends State<PostGosterPage> {
           Stack(
             children: [
               isVideo
-                  ? VideoPlayerWidget(url: postUrl)
+                  ? VideoPlayerWidget(url: postUrl, portreMi: portreMi) // Pass portreMi
                   : Image.network(
                       postUrl,
                       fit: BoxFit.contain,
@@ -152,13 +153,6 @@ class _PostGosterPageState extends State<PostGosterPage> {
                         return Icon(Icons.error, color: Colors.red);
                       },
                     ),
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: Container(
-                    color: Colors.transparent,
-                  ),
-                ),
-              ),
             ],
           ),
           Divider(color: const Color(0xFFD06100), thickness: 2, height: 0),
@@ -356,8 +350,9 @@ class _PostGosterPageState extends State<PostGosterPage> {
 }
 class VideoPlayerWidget extends StatefulWidget {
   final String url;
+  final int portreMi; // Add portreMi parameter
 
-  const VideoPlayerWidget({super.key, required this.url});
+  const VideoPlayerWidget({super.key, required this.url, required this.portreMi}); // Update constructor
 
   @override
   _VideoPlayerWidgetState createState() => _VideoPlayerWidgetState();
@@ -401,58 +396,80 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_controller.value.isInitialized) {
-      return Column(
-        children: [
-          SizedBox(height: 60),
-          const Center(child: CircularProgressIndicator()),
-          SizedBox(height: 60),
-        ],
+    final bool isInitialized = _controller.value.isInitialized;
+    final double screenWidth = MediaQuery.of(context).size.width.toDouble();
+
+    if (!isInitialized) {
+      return Container(
+        width: screenWidth,
+        height: screenWidth * (9.0 / 16.0), // Default 16:9 aspect ratio
+        color: Colors.black,
+        child: const Center(child: CircularProgressIndicator()),
       );
     }
 
-    // Calculate the aspect ratio and dimensions
-    final screenWidth = MediaQuery.of(context).size.width;
-    final videoAspectRatio = _controller.value.aspectRatio;
-    
-    // Calculate height based on aspect ratio
-    final videoHeight = screenWidth / videoAspectRatio;
+    // --- Get Reported Video Size ---
+    double reportedWidth = _controller.value.size.width;
+    double reportedHeight = _controller.value.size.height;
+
+    // --- Determine Correct Dimensions based on portreMi ---
+    double actualWidth;
+    double actualHeight;
+
+    if (widget.portreMi == 1) {
+      // Portrait video, dimensions might be swapped
+      actualWidth = reportedHeight; // Assume height is the actual width
+      actualHeight = reportedWidth; // Assume width is the actual height
+      print('Portrait video (portre_mi=1): Using swapped dimensions W=$actualWidth, H=$actualHeight');
+    } else {
+      // Landscape video or unknown, use reported dimensions
+      actualWidth = reportedWidth;
+      actualHeight = reportedHeight;
+       print('Landscape/Other video (portre_mi=${widget.portreMi}): Using reported dimensions W=$actualWidth, H=$actualHeight');
+    }
+
+
+    // --- Calculate Aspect Ratio ---
+    double correctAspectRatio;
+    // Ensure we don't divide by zero
+    if (actualHeight > 0 && actualWidth > 0) {
+       correctAspectRatio = actualWidth / actualHeight;
+    } else {
+      correctAspectRatio = 16.0 / 9.0; // Default if size is invalid
+      print('Warning: Invalid video dimensions reported. Using default AR.');
+    }
 
     return Column(
       children: [
-        Container(
-          width: screenWidth,
-          height: videoHeight,
-          color: Colors.black,
-          child: Stack(
-            children: [
-              // Use a SizedBox with full dimensions to ensure video fills screen width
-              Center(
-                child: SizedBox(
-                  width: screenWidth,
-                  height: videoHeight,
-                  child: VideoPlayer(_controller),
-                ),
+        Stack(
+          alignment: Alignment.bottomRight, // Keep alignment for button
+          children: [
+            // Wrap AspectRatio in a Center widget
+            Center(
+              child: AspectRatio(
+                aspectRatio: correctAspectRatio,
+                child: VideoPlayer(_controller), // Video player fills the AspectRatio
               ),
-              Positioned(
-                bottom: 8,
-                right: 8,
-                child: IconButton(
-                  icon: Icon(
-                    _isMuted ? Icons.volume_off : Icons.volume_up,
-                    color: Colors.white,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _isMuted = !_isMuted;
-                      _controller.setVolume(_isMuted ? 0 : 1);
-                    });
-                  },
+            ),
+            // Volume button positioned within the Stack
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: IconButton(
+                icon: Icon(
+                  _isMuted ? Icons.volume_off : Icons.volume_up,
+                  color: Colors.white,
                 ),
+                onPressed: () {
+                  setState(() {
+                    _isMuted = !_isMuted;
+                    _controller.setVolume(_isMuted ? 0 : 1);
+                  });
+                },
               ),
-            ],
-          ),
+            ),
+          ],
         ),
+        // Progress indicator below the video area
         VideoProgressIndicator(
           _controller,
           allowScrubbing: true,

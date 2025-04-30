@@ -21,6 +21,7 @@ class _UploadPageState extends State<UploadPage> {
   final ImagePicker _picker = ImagePicker();
   int _userId = 0;
   String _userNickname = '';
+  int _portreMiValue = 2; // 2: image/not set, 0: landscape video, 1: portrait video
 
   @override
   void initState() {
@@ -67,6 +68,12 @@ class _UploadPageState extends State<UploadPage> {
       if (pickedFile != null) {
         setState(() {
           _mediaFile = pickedFile;
+          // Reset portreMiValue based on file type
+          if (_isMediaVideo(pickedFile)) {
+            _portreMiValue = 0; // Default to landscape for video
+          } else {
+            _portreMiValue = 2; // Set to 2 for images or other types
+          }
           _errorMessage = ''; // Clear error on new selection
         });
       }
@@ -159,8 +166,17 @@ class _UploadPageState extends State<UploadPage> {
       final lowerCasePath = _mediaFile!.path.toLowerCase();
       if (lowerCasePath.endsWith('.mp4') || lowerCasePath.endsWith('.mov') || lowerCasePath.endsWith('.avi') || lowerCasePath.endsWith('.wmv')) {
         mediaType = 'video';
+        // _portreMiValue is already set by _pickMedia or the switch
+      } else {
+         mediaType = 'image';
+         _portreMiValue = 2; // Ensure it's 2 for images
       }
+    } else {
+       // Handle case where _mediaFile is null if needed, though validated earlier
+       setState(() => _isUploading = false);
+       return;
     }
+
 
     try {
       thumbnailUrl = await _uploadFile(_thumbnailFile!, 'post_thumbnail');
@@ -193,6 +209,7 @@ class _UploadPageState extends State<UploadPage> {
           'gizlilik_turu': _privacy,
           'konum': 'Konum Bilgisi Eklenecek',
           'media_type': mediaType,
+          'portre_mi': _portreMiValue, // Add the portrait info
         }),
       );
 
@@ -206,6 +223,7 @@ class _UploadPageState extends State<UploadPage> {
             _mediaFile = null;
             _thumbnailFile = null;
             _descriptionController.clear();
+            _portreMiValue = 2; // Reset portrait value
             _errorMessage = '';
           });
         } else {
@@ -296,7 +314,25 @@ class _UploadPageState extends State<UploadPage> {
               ),
             ],
           ),
-          SizedBox(height: 20),
+          SizedBox(height: 10), // Add some space
+
+          // --- Add Portrait Switch for Video ---
+          Visibility(
+            visible: _isMediaVideo(_mediaFile), // Show only if media is a video
+            child: SwitchListTile(
+              title: Text('Video Dikey mi?'),
+              value: _portreMiValue == 1,
+              onChanged: (bool value) {
+                setState(() {
+                  _portreMiValue = value ? 1 : 0;
+                });
+              },
+              secondary: Icon(Icons.screen_rotation),
+            ),
+          ),
+          // --- End Portrait Switch ---
+
+          SizedBox(height: 20), // Adjust spacing if needed
 
           Text('Thumbnail Seç (Fotoğraf)', style: Theme.of(context).textTheme.titleMedium),
           SizedBox(height: 8),
