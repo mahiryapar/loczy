@@ -6,6 +6,9 @@ import 'package:http/http.dart' as http;
 import 'package:loczy/config_getter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// Enum to define the upload type
+enum UploadType { post, story }
+
 class UploadPage extends StatefulWidget {
   @override
   _UploadPageState createState() => _UploadPageState();
@@ -13,15 +16,16 @@ class UploadPage extends StatefulWidget {
 
 class _UploadPageState extends State<UploadPage> {
   XFile? _mediaFile;
-  XFile? _thumbnailFile;
-  final TextEditingController _descriptionController = TextEditingController();
-  String _privacy = 'public'; // Default privacy
+  XFile? _thumbnailFile; // Only used for posts
+  final TextEditingController _descriptionController = TextEditingController(); // Only used for posts
+  String _privacy = 'public'; // Only used for posts
   bool _isUploading = false;
   String _errorMessage = '';
   final ImagePicker _picker = ImagePicker();
   int _userId = 0;
   String _userNickname = '';
-  int _portreMiValue = 2; // 2: image/not set, 0: landscape video, 1: portrait video
+  int _portreMiValue = 2; // Only used for posts (2: image/not set, 0: landscape video, 1: portrait video)
+  UploadType _selectedUploadType = UploadType.post; // Default to post
 
   @override
   void initState() {
@@ -68,12 +72,13 @@ class _UploadPageState extends State<UploadPage> {
       if (pickedFile != null) {
         setState(() {
           _mediaFile = pickedFile;
-          // Reset portreMiValue based on file type
-          if (_isMediaVideo(pickedFile)) {
-            _portreMiValue = 0; // Default to landscape for video
-          } else {
-            _portreMiValue = 2; // Set to 2 for images or other types
+          // Reset portreMiValue only if uploading a post and it's a video
+          if (_selectedUploadType == UploadType.post && _isMediaVideo(pickedFile)) {
+            _portreMiValue = 0; // Default to landscape for video post
+          } else if (_selectedUploadType == UploadType.post) {
+             _portreMiValue = 2; // Set to 2 for image post
           }
+          // No need to set _portreMiValue for stories
           _errorMessage = ''; // Clear error on new selection
         });
       }
@@ -135,6 +140,7 @@ class _UploadPageState extends State<UploadPage> {
     }
   }
 
+  // Renamed original submit function
   Future<void> _submitPost() async {
     if (_mediaFile == null) {
       setState(() => _errorMessage = 'Lütfen bir medya dosyası seçin.');
@@ -179,12 +185,14 @@ class _UploadPageState extends State<UploadPage> {
 
 
     try {
+      // Upload thumbnail first for post
       thumbnailUrl = await _uploadFile(_thumbnailFile!, 'post_thumbnail');
       if (thumbnailUrl == null) {
         setState(() => _isUploading = false);
         return;
       }
 
+      // Upload media
       mediaUrl = await _uploadFile(_mediaFile!, 'post_media');
       if (mediaUrl == null) {
         setState(() => _isUploading = false);
@@ -205,11 +213,11 @@ class _UploadPageState extends State<UploadPage> {
           'atan_id': _userId,
           'aciklama': _descriptionController.text,
           'video_foto_url': mediaUrl,
-          'thumbnail_url': thumbnailUrl,
+          'thumbnail_url': thumbnailUrl, // Included for post
           'gizlilik_turu': _privacy,
-          'konum': 'Konum Bilgisi Eklenecek',
+          'konum': 'Konum Bilgisi Eklenecek', // Included for post
           'media_type': mediaType,
-          'portre_mi': _portreMiValue, // Add the portrait info
+          'portre_mi': _portreMiValue, // Included for post
         }),
       );
 
@@ -244,6 +252,78 @@ class _UploadPageState extends State<UploadPage> {
     }
   }
 
+  // New function to submit a story
+  Future<void> _submitStory() async {
+    if (_mediaFile == null) {
+      setState(() => _errorMessage = 'Lütfen bir medya dosyası seçin.');
+      return;
+    }
+     if (_userId == 0) {
+      setState(() => _errorMessage = 'Kullanıcı bilgileri yüklenemedi, lütfen tekrar deneyin.');
+      return;
+    }
+
+    setState(() {
+      _isUploading = true;
+      _errorMessage = '';
+    });
+
+    String? mediaUrl;
+
+    try {
+      // Upload media for story
+      mediaUrl = await _uploadFile(_mediaFile!, 'story_media');
+      if (mediaUrl == null) {
+        setState(() => _isUploading = false);
+        return;
+      }
+
+      // API call to storys.php
+      final apiUrl = await ConfigLoader.apiUrl;
+      final storysUri = Uri.parse('$apiUrl/routers/storys.php'); // Correct endpoint
+      final bearerToken = await ConfigLoader.bearerToken;
+
+      final response = await http.post(
+        storysUri,
+        headers: {
+          'Content-Type': 'application/json', // Assuming storys.php expects JSON
+          'Authorization': 'Bearer $bearerToken',
+        },
+        body: jsonEncode({
+          'atan_id': _userId,
+          'post_url': mediaUrl, // Send the media URL as post_url
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+         final responseData = json.decode(response.body);
+         // Adjust success condition based on your storys.php response
+         if (responseData['message'] == 'Story oluşturuldu') {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Hikaye başarıyla paylaşıldı!')),
+            );
+            setState(() {
+              _mediaFile = null; // Clear only media file for story
+              _errorMessage = '';
+            });
+         } else {
+            throw Exception(responseData['message'] ?? 'Hikaye oluşturulamadı.');
+         }
+      } else {
+        throw Exception('Sunucu hatası: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Submit story error: $e');
+      setState(() {
+        _errorMessage = 'Hikaye paylaşılırken hata oluştu: $e';
+      });
+    } finally {
+      setState(() {
+        _isUploading = false;
+      });
+    }
+  }
+
   @override
   void dispose() {
     _descriptionController.dispose();
@@ -258,18 +338,56 @@ class _UploadPageState extends State<UploadPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Define the height for the media/thumbnail container when uploading a post
+    const double postContainerHeight = 250.0;
+    // Define the height for the media container when uploading a story
+    const double storyContainerHeight = 350.0;
+
     return SingleChildScrollView(
       padding: EdgeInsets.only(top: 70.0, left: 16.0, right: 16.0, bottom: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Yeni Gönderi Oluştur', style: Theme.of(context).textTheme.headlineSmall),
-          SizedBox(height: 20),
+          // --- Upload Type Selector ---
+          Center(
+            child: ToggleButtons(
+              isSelected: [_selectedUploadType == UploadType.post, _selectedUploadType == UploadType.story],
+              onPressed: (int index) {
+                setState(() {
+                  _selectedUploadType = index == 0 ? UploadType.post : UploadType.story;
+                  // Reset fields when switching
+                  _mediaFile = null;
+                  _thumbnailFile = null;
+                  _descriptionController.clear();
+                  _portreMiValue = 2;
+                  _errorMessage = '';
+                });
+              },
+              borderRadius: BorderRadius.circular(8.0),
+              selectedBorderColor: const Color(0xFFD06100),
+              selectedColor: Colors.white,
+              fillColor: const Color(0xFFD06100),
+              color: const Color(0xFFD06100),
+              constraints: BoxConstraints(minHeight: 40.0, minWidth: 100.0),
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Text('Gönderi'),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Text('Hikaye'),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 25),
 
+          // --- Common Media Selection ---
           Text('Medya Seç', style: Theme.of(context).textTheme.titleMedium),
           SizedBox(height: 8),
           Container(
-            height: 200,
+            height: _selectedUploadType == UploadType.post ? postContainerHeight : storyContainerHeight, // Use defined heights
             width: double.infinity,
             decoration: BoxDecoration(
               border: Border.all(color: Colors.grey),
@@ -282,10 +400,10 @@ class _UploadPageState extends State<UploadPage> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.videocam, size: 50, color: Colors.grey[700]),
-                            SizedBox(height: 8),
+                            Icon(Icons.videocam, size: 60, color: Colors.grey[700]), // Slightly larger icon
+                            SizedBox(height: 10),
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                              padding: const EdgeInsets.symmetric(horizontal: 12.0),
                               child: Text(
                                 'Video Yüklendi: ${_mediaFile!.name}', // Show filename
                                 style: TextStyle(color: Colors.grey[700]),
@@ -299,6 +417,7 @@ class _UploadPageState extends State<UploadPage> {
                       )
                     : Image.file(File(_mediaFile!.path), fit: BoxFit.cover),
           ),
+          SizedBox(height: 15), // Increased space
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
@@ -314,81 +433,84 @@ class _UploadPageState extends State<UploadPage> {
               ),
             ],
           ),
-          SizedBox(height: 10), // Add some space
+          SizedBox(height: 15), // Increased space
 
-          // --- Add Portrait Switch for Video ---
-          Visibility(
-            visible: _isMediaVideo(_mediaFile), // Show only if media is a video
-            child: SwitchListTile(
-              title: Text('Video Dikey mi?'),
-              value: _portreMiValue == 1,
-              onChanged: (bool value) {
-                setState(() {
-                  _portreMiValue = value ? 1 : 0;
-                });
+          // --- Post Specific Fields ---
+          if (_selectedUploadType == UploadType.post) ...[
+            // --- Portrait Switch for Video ---
+            Visibility(
+              visible: _isMediaVideo(_mediaFile), // Show only if media is a video
+              child: SwitchListTile(
+                title: Text('Video Dikey mi?'),
+                value: _portreMiValue == 1,
+                onChanged: (bool value) {
+                  setState(() {
+                    _portreMiValue = value ? 1 : 0;
+                  });
+                },
+                secondary: Icon(Icons.screen_rotation),
+              ),
+            ),
+            SizedBox(height: 20),
+
+            Text('Thumbnail Seç (Fotoğraf)', style: Theme.of(context).textTheme.titleMedium),
+            SizedBox(height: 8),
+            Container(
+              height: postContainerHeight, // Make thumbnail container height same as media for post
+              width: double.infinity, // Make thumbnail container width same as media for post
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: _thumbnailFile == null
+                  ? Center(child: Text('Thumbnail\nseçilmedi', textAlign: TextAlign.center,))
+                  : Image.file(File(_thumbnailFile!.path), fit: BoxFit.cover),
+            ),
+            SizedBox(height: 15), // Increased space
+             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () => _pickThumbnail(ImageSource.gallery),
+                  icon: Icon(Icons.photo_library),
+                  label: Text('Galeri'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () => _pickThumbnail(ImageSource.camera),
+                  icon: Icon(Icons.camera_alt),
+                  label: Text('Kamera'),
+                ),
+              ],
+            ),
+            SizedBox(height: 25), // Increased space
+
+            TextField(
+              controller: _descriptionController,
+              decoration: InputDecoration(
+                labelText: 'Açıklama',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 4,
+            ),
+            SizedBox(height: 20),
+
+            ListTile(
+              leading: Icon(Icons.location_on),
+              title: Text('Konum Ekle'),
+              subtitle: Text('Yakında eklenecek...'),
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Konum özelliği yakında eklenecektir.')),
+                );
               },
-              secondary: Icon(Icons.screen_rotation),
             ),
-          ),
-          // --- End Portrait Switch ---
+            SizedBox(height: 10),
 
-          SizedBox(height: 20), // Adjust spacing if needed
+            Text('Gizlilik: Bu gönderi "${_privacy == 'private' ? 'Gizli' : 'Herkese Açık'}" olarak paylaşılacak.', style: TextStyle(color: Colors.grey[700])),
+            SizedBox(height: 20),
+          ], // End of Post Specific Fields
 
-          Text('Thumbnail Seç (Fotoğraf)', style: Theme.of(context).textTheme.titleMedium),
-          SizedBox(height: 8),
-          Container(
-            height: 100,
-            width: 100,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: _thumbnailFile == null
-                ? Center(child: Text('Thumbnail\nseçilmedi', textAlign: TextAlign.center,))
-                : Image.file(File(_thumbnailFile!.path), fit: BoxFit.cover),
-          ),
-           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              ElevatedButton.icon(
-                onPressed: () => _pickThumbnail(ImageSource.gallery),
-                icon: Icon(Icons.photo_library),
-                label: Text('Galeri'),
-              ),
-              ElevatedButton.icon(
-                onPressed: () => _pickThumbnail(ImageSource.camera),
-                icon: Icon(Icons.camera_alt),
-                label: Text('Kamera'),
-              ),
-            ],
-          ),
-          SizedBox(height: 20),
-
-          TextField(
-            controller: _descriptionController,
-            decoration: InputDecoration(
-              labelText: 'Açıklama',
-              border: OutlineInputBorder(),
-            ),
-            maxLines: 4,
-          ),
-          SizedBox(height: 20),
-
-          ListTile(
-            leading: Icon(Icons.location_on),
-            title: Text('Konum Ekle'),
-            subtitle: Text('Yakında eklenecek...'),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Konum özelliği yakında eklenecektir.')),
-              );
-            },
-          ),
-          SizedBox(height: 10),
-
-          Text('Gizlilik: Bu gönderi "${_privacy == 'private' ? 'Gizli' : 'Herkese Açık'}" olarak paylaşılacak.', style: TextStyle(color: Colors.grey[700])),
-          SizedBox(height: 20),
-
+          // --- Common Error Message ---
           if (_errorMessage.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 15.0),
@@ -399,8 +521,10 @@ class _UploadPageState extends State<UploadPage> {
               ),
             ),
 
+          // --- Common Share Button ---
           ElevatedButton(
-            onPressed: _isUploading ? null : _submitPost,
+            // Call the appropriate submit function based on type
+            onPressed: _isUploading ? null : (_selectedUploadType == UploadType.post ? _submitPost : _submitStory),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFD06100),
               foregroundColor: const Color(0xFFF2E9E9),
@@ -415,7 +539,8 @@ class _UploadPageState extends State<UploadPage> {
                       strokeWidth: 3,
                     ),
                   )
-                : Text('Paylaş'),
+                // Change button text based on type
+                : Text(_selectedUploadType == UploadType.post ? 'Gönderiyi Paylaş' : 'Hikayeyi Paylaş'),
           ),
           SizedBox(height: 50),
         ],

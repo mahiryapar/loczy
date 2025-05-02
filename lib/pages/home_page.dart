@@ -550,8 +550,12 @@ class _HomePageState extends State<HomePage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  // Pass currentUserId here
-                  builder: (context) => StoryViewPage(story: story, currentUserId: _currentUserId!),
+                  // Pass the full list, initial index, and currentUserId
+                  builder: (context) => StoryViewPage(
+                    allStories: _stories,
+                    initialStoryIndex: index, // Pass the index of the tapped story
+                    currentUserId: _currentUserId!,
+                  ),
                 ),
               ).then((_) {
                  _refreshStoriesAfterViewing(); // Refresh after viewing
@@ -600,7 +604,9 @@ class _HomePageState extends State<HomePage> {
                     style: TextStyle(
                       fontSize: 12,
                       // Style based on watched status
-                      color: story.hasUnwatched ? Colors.black : Colors.grey.shade600, // Black for unwatched, grey for watched
+                        color: story.hasUnwatched
+                          ? Theme.of(context).colorScheme.primary // Use theme's primary color for unwatched
+                          : Colors.grey.shade600, // Grey for watched
                       fontWeight: story.hasUnwatched ? FontWeight.bold : FontWeight.normal, // Bold for unwatched
                     ),
                     overflow: TextOverflow.ellipsis,
@@ -933,6 +939,7 @@ class _HomePageState extends State<HomePage> {
 
         // 3. Process each user's stories
         List<Future<Story?>> storyFutures = [];
+        final DateTime twentyFourHoursAgoProcessing = DateTime.now().subtract(const Duration(hours: 24)); // Define here for reuse
 
         groupedRawStories.forEach((atanId, rawStoriesList) {
           if (atanId == 0) return;
@@ -943,23 +950,82 @@ class _HomePageState extends State<HomePage> {
 
               // *** Create List<StoryItem> ***
               List<StoryItem> storyItems = rawStoriesList.map((story) {
-                return StoryItem(
-                  id: story['id'] as int? ?? 0, // Assuming 'id' is the story item ID
-                  mediaUrl: story['post_url'] as String? ?? '', // Assuming 'post_url' is the media URL
-                );
-              }).where((item) => item.id != 0 && item.mediaUrl.isNotEmpty).toList();
+                // ... existing StoryItem creation logic ...
+                final int storyId = story['id'] as int? ?? 0;
+                final String mediaUrl = story['post_url'] as String? ?? '';
+                // *** Extract and parse creation time ***
+                final String? dateString = story['atilma_tarihi']?['date'] as String?;
+                final DateTime creationTime = dateString != null
+                    ? DateTime.tryParse(dateString) ?? DateTime.now() // Parse or default to now
+                    : DateTime.now(); // Default if field is missing
+
+                // Determine mediaType based on extension using string manipulation
+                String mediaType = 'image'; // Default to image
+                if (mediaUrl.isNotEmpty) {
+                  final uri = Uri.tryParse(mediaUrl);
+                  if (uri != null && uri.pathSegments.isNotEmpty) {
+                    final lastSegment = uri.pathSegments.last;
+                    final dotIndex = lastSegment.lastIndexOf('.');
+                    if (dotIndex != -1 && dotIndex < lastSegment.length - 1) {
+                      final extension = lastSegment.substring(dotIndex + 1).toLowerCase();
+                      if (['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(extension)) {
+                        mediaType = 'video';
+                      }
+                    }
+                  }
+                }
+
+                // Return StoryItem only if ID and URL are valid
+                if (storyId != 0 && mediaUrl.isNotEmpty) {
+                  // Assuming StoryItem constructor accepts mediaType
+                  // You might need to update StoryItem definition in story_view_page.dart
+                  return StoryItem(
+                    id: storyId,
+                    mediaUrl: mediaUrl,
+                    mediaType: mediaType, // Pass the determined type
+                    creationTime: creationTime, // Pass the parsed creation time
+                  );
+                } else {
+                  return null; // Return null for invalid items to be filtered out
+                }
+              }).whereType<StoryItem>().toList(); // Filter out nulls and ensure correct type
 
               if (storyItems.isEmpty) return null; // Skip user if no valid items
 
-              // Determine if the user has any unwatched stories
-              bool hasUnwatched = storyItems.any((item) => unwatchedStoryIds.contains(item.id));
+              // *** Filter items to only include those within the last 24 hours ***
+              List<StoryItem> recentStoryItems = storyItems.where((item) =>
+                  item.creationTime.isAfter(twentyFourHoursAgoProcessing)
+              ).toList();
 
+              // *** Determine if the user has any UNWATCHED stories WITHIN THE LAST 24 HOURS ***
+              bool hasUnwatched = recentStoryItems.any((item) => unwatchedStoryIds.contains(item.id));
+              // Debug print for clarity
+              if (hasUnwatched) {
+                 print("DEBUG: User $atanId (${userDetails['nickname']}) has unwatched RECENT stories.");
+              } else {
+                 // Check if they had unwatched *older* stories (for debugging comparison)
+                 bool hadOlderUnwatched = storyItems.any((item) =>
+                     item.creationTime.isBefore(twentyFourHoursAgoProcessing) &&
+                     unwatchedStoryIds.contains(item.id)
+                 );
+                 if (hadOlderUnwatched) {
+                    print("DEBUG: User $atanId (${userDetails['nickname']}) has only OLDER unwatched stories. Setting hasUnwatched=false.");
+                 }
+              }
+
+
+              // *** Keep the overall story if it has ANY recent items (watched or unwatched) ***
+              // This filtering happens later, outside this specific user processing block.
+              // We just need to return the Story object with the correct `hasUnwatched` flag based on recent items.
+
+              // Return the Story object, ensuring we pass the *original* full list of items
+              // but use the correctly calculated `hasUnwatched` flag.
               return Story(
                 userId: atanId,
                 username: userDetails['nickname'] ?? 'Bilinmeyen',
                 profileImageUrl: userDetails['profil_fotosu_url'] ?? ConfigLoader.defaultProfilePhoto,
-                items: storyItems, // Use the list of StoryItem
-                hasUnwatched: hasUnwatched,
+                items: storyItems, // Pass the original full list for viewing
+                hasUnwatched: hasUnwatched, // Use the flag based on RECENT unwatched items
               );
             } catch (e) {
                print("DEBUG: Error processing stories for user $atanId: $e");
@@ -970,26 +1036,40 @@ class _HomePageState extends State<HomePage> {
 
         // Wait for all user details and story processing
         final processedStories = await Future.wait(storyFutures);
-        fetchedStories = processedStories.whereType<Story>().toList(); // Filter out nulls
+        List<Story> validStories = processedStories.whereType<Story>().toList(); // Filter out nulls
+
+        // *** Filter stories older than 24 hours ***
+        // This filter remains the same: Keep a user's story circle if *any* of their items are recent.
+        final DateTime twentyFourHoursAgoFilter = DateTime.now().subtract(const Duration(hours: 24));
+        List<Story> recentStories = validStories.where((story) {
+          // Keep the story if ANY of its items were created within the last 24 hours
+          return story.items.any((item) => item.creationTime.isAfter(twentyFourHoursAgoFilter));
+        }).toList();
+        print("DEBUG: Filtered stories. Kept ${recentStories.length} out of ${validStories.length} based on 24-hour rule.");
+
+        // Assign the filtered list to fetchedStories for sorting
+        fetchedStories = recentStories; // Contains only stories with at least one item < 24h old
 
         // *** Sort stories: Prioritize current user, then unwatched, then by username ***
         Story? currentUserStory;
-        fetchedStories.removeWhere((story) {
+        fetchedStories.removeWhere((story) { // Iterate through recentStories
           if (story.userId == _currentUserId) {
-            currentUserStory = story;
-            return true; // Remove from list to re-insert at the beginning
+            currentUserStory = story; // Store the current user's story if found
+            return true; // Remove it from fetchedStories for now
           }
           return false;
         });
 
         // Sort remaining stories (unwatched first, then username)
         fetchedStories.sort((a, b) {
-          if (a.hasUnwatched && !b.hasUnwatched) return -1;
+          // Use the hasUnwatched flag (which is now based on recent items)
+          if (a.hasUnwatched && !b.hasUnwatched) return -1; // Unwatched (recent) first
           if (!a.hasUnwatched && b.hasUnwatched) return 1;
-          return a.username.compareTo(b.username); // Sort by username if watched status is same
+          // If watched status is the same (both watched or both unwatched recent), sort by username
+          return a.username.compareTo(b.username);
         });
 
-        // Add current user's story to the beginning if it exists
+        // Add current user's story to the beginning if it exists (i.e., if it was found and removed)
         if (currentUserStory != null) {
           fetchedStories.insert(0, currentUserStory!);
         }
@@ -1003,7 +1083,7 @@ class _HomePageState extends State<HomePage> {
       print('DEBUG: Error fetching stories: $e');
     }
 
-    // Update state
+    // Update state with the filtered and sorted list
     if (mounted) {
       setState(() {
         _stories = fetchedStories;
