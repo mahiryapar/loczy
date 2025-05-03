@@ -24,4 +24,8 @@ class ConfigLoader {
   static String get defaultProfilePhoto {
     return _config?['default_pp'] ?? '';
   }
+
+  static String get vm_ip {
+    return _config?['vm_ip'] ?? '';
+  }
 }
