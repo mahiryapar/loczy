@@ -1,3 +1,4 @@
+import 'dart:async'; // Import async library for Timer
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -26,6 +27,8 @@ class _AnaSayfaState extends State<AnaSayfa> {
   String _username = '@KullanıcıAdı'; // Varsayılan kullanıcı adı
   bool _showNotifications = false;
   MqttService? _mqttService; // Make MqttService nullable
+  bool _showExpandedContent = false; // Controls visibility of expanded content
+  Timer? _expandTimer; // Timer for delayed appearance
 
   // Define the async logout function
   Future<void> _logout() async {
@@ -127,6 +130,7 @@ class _AnaSayfaState extends State<AnaSayfa> {
   @override
   void dispose() {
     print("AnaSayfa: dispose called. Disconnecting MQTT."); // DEBUG PRINT
+    _expandTimer?.cancel(); // Cancel timer if active
     // Disconnect MQTT when the widget is disposed
     _mqttService?.disconnect();
     super.dispose();
@@ -145,102 +149,179 @@ class _AnaSayfaState extends State<AnaSayfa> {
   }
 
   void _toggleNotifications() {
-    setState(() {
-      _showNotifications = !_showNotifications;
-      // Mark notifications as read when opening the detailed view
-      if (_showNotifications) {
-        Provider.of<NotificationProvider>(context, listen: false).markAsRead();
-      }
-    });
+    _expandTimer?.cancel(); // Cancel any existing timer
+
+    if (!_showNotifications) { // ---- Expanding ----
+      setState(() {
+        _showNotifications = true; // Start expanding animation
+        // Don't show content immediately to prevent overflow during animation
+        _showExpandedContent = false;
+      });
+      // Start timer to show content shortly after animation starts
+      _expandTimer = Timer(Duration(milliseconds: 150), () { // Delay before showing content
+         // Check if still mounted and still in expanded state before updating state
+         if (mounted && _showNotifications) {
+            setState(() {
+               _showExpandedContent = true; // Show content now
+            });
+         }
+      });
+      // Mark as read when opening
+      Provider.of<NotificationProvider>(context, listen: false).markAsRead();
+
+    } else { // ---- Collapsing ----
+      setState(() {
+        _showExpandedContent = false; // Hide content immediately
+        _showNotifications = false; // Start collapsing animation
+      });
+    }
   }
+
 
   Widget _buildAppBar() {
     // Use Consumer to listen to NotificationProvider changes
     return Consumer<NotificationProvider>(
       builder: (context, notificationProvider, child) {
         final unreadCount = notificationProvider.unreadCount;
-        final latestNotification = notificationProvider.notifications.isNotEmpty
-            ? notificationProvider.notifications.first
-            : null;
+        final notifications = notificationProvider.notifications; // Get the list
+        final latestNotification = notifications.isNotEmpty ? notifications.first : null;
         final marqueeText = unreadCount > 0 && latestNotification != null
             ? '$unreadCount okunmamış bildirim: ${latestNotification.body}'
             : 'Bildirim yok'; // Default text when no unread
 
+        // Define heights
+        const double collapsedHeight = 60.0;
+        const double expandedEmptyHeight = 80.0; // Height when expanded but empty
+        const double expandedListHeight = 300.0;
+
+        // Determine current height based on state
+        final double currentHeight = _showNotifications
+            ? (notifications.isEmpty ? expandedEmptyHeight : expandedListHeight)
+            : collapsedHeight;
+
+        // Widget to display when collapsed OR expanded but empty/animating
+        final Widget marqueeWidget = Center( // Collapsed Marquee View (Center vertically)
+          child: Container(
+            height: 20.0, // Explicit height for Marquee container
+            child: Marquee(
+              key: ValueKey(marqueeText), // Add key to force rebuild on text change
+              text: marqueeText,
+              style: TextStyle(
+                fontSize: 14.0,
+                fontWeight: FontWeight.bold,
+                color: Colors.white
+              ),
+              scrollAxis: Axis.horizontal,
+              blankSpace: 50.0,
+              velocity: 40.0,
+              pauseAfterRound: Duration(seconds: 2),
+              showFadingOnlyWhenScrolling: true,
+              fadingEdgeStartFraction: 0.1,
+              fadingEdgeEndFraction: 0.1,
+              startPadding: 10.0,
+              accelerationDuration: Duration(seconds: 1),
+              accelerationCurve: Curves.linear,
+              decelerationDuration: Duration(milliseconds: 500),
+              decelerationCurve: Curves.easeOut,
+            ),
+          ),
+        );
+
         return AnimatedPositioned(
-          duration: Duration(milliseconds: 500),
-          curve: Curves.fastEaseInToSlowEaseOut,
+          duration: Duration(milliseconds: 300), // Slightly faster animation
+          curve: Curves.easeInOut, // Smoother curve
           top: 0,
           left: 0,
           right: 0,
-          // Adjust height based on whether notifications are shown and if there are any
-          height: _showNotifications ? (notificationProvider.notifications.isEmpty ? 80.0 : 300.0) : 60.0,
+          height: currentHeight,
           child: GestureDetector(
-            onTap: _selectedIndex != 4 ? _toggleNotifications : null,
+            // Allow toggling if not on profile page
+            onTap: _selectedIndex != 4 ? _toggleNotifications : null, // Updated condition
             child: Material(
               elevation: 10.0,
+              color: Theme.of(context).appBarTheme.backgroundColor ?? Theme.of(context).primaryColor, // Use theme color
               borderRadius: BorderRadius.only(
                 bottomLeft: Radius.circular(_showNotifications ? 20.0 : 10.0),
                 bottomRight: Radius.circular(_showNotifications ? 20.0 : 10.0),
               ),
-              child: AppBar(
-                toolbarHeight: _showNotifications ? (notificationProvider.notifications.isEmpty ? 80.0 : 300.0) : 60.0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(_showNotifications ? 20.0 : 10.0),
-                    bottomRight: Radius.circular(_showNotifications ? 20.0 : 10.0),
-                  ),
-                ),
-                title: _selectedIndex == 4
-                    ? Center( // Profile Page Title
-                        child: Text(
-                          _username,
-                          style: TextStyle(fontSize: 14.0, fontWeight: FontWeight.bold),
-                        ),
-                      )
-                    : _showNotifications // Expanded Notification View
-                        ? (notificationProvider.notifications.isEmpty
-                            ? Center(child: Text("Yeni bildirim yok.", style: TextStyle(fontSize: 14.0)))
-                            : ListView.builder( // Display list of notifications
-                                itemCount: notificationProvider.notifications.length,
-                                itemBuilder: (context, index) {
-                                  final notification = notificationProvider.notifications[index];
-                                  return ListTile(
-                                    dense: true,
-                                    title: Text(notification.title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                    subtitle: Text(notification.body, style: TextStyle(fontSize: 12)),
-                                    // You can add timestamps or actions here
-                                  );
-                                },
-                              )
-                          )
-                        : Container( // Collapsed Marquee View
-                            height: 20.0,
-                            child: Marquee(
-                              text: marqueeText,
-                              style: TextStyle(
-                                fontSize: 14.0,
-                                fontWeight: FontWeight.bold,
-                                color: unreadCount > 0 ? Colors.redAccent : null, // Highlight if unread
-                              ),
-                              scrollAxis: Axis.horizontal,
-                              blankSpace: 50.0, // Increased blank space
-                              velocity: 40.0, // Slightly slower velocity
-                              pauseAfterRound: Duration(seconds: 2), // Pause between scrolls
-                              showFadingOnlyWhenScrolling: true,
-                              fadingEdgeStartFraction: 0.1,
-                              fadingEdgeEndFraction: 0.1,
-                              startPadding: 10.0,
-                              accelerationDuration: Duration(seconds: 1),
-                              accelerationCurve: Curves.linear,
-                              decelerationDuration: Duration(milliseconds: 500),
-                              decelerationCurve: Curves.easeOut,
-                            ),
-                          ),
-                // Add padding or SizedBox if needed when AppBar content changes height
-                bottom: PreferredSize(
-                  preferredSize: Size.fromHeight(5.0),
-                  child: SizedBox(height: 5.0),
-                ),
+              child: ClipRRect( // Clip content to rounded corners
+                 borderRadius: BorderRadius.only(
+                   bottomLeft: Radius.circular(_showNotifications ? 20.0 : 10.0),
+                   bottomRight: Radius.circular(_showNotifications ? 20.0 : 10.0),
+                 ),
+                 child: SafeArea( // Ensure content is below status bar
+                   bottom: false, // No safe area needed at the bottom of the app bar
+                   child: Container( // Use Container to manage content layout
+                     height: currentHeight,
+                     padding: EdgeInsets.only(top: 5, bottom: 5), // Add some vertical padding
+                     child: _selectedIndex == 4
+                         ? Center( // Profile Page Title
+                             child: Text(
+                               _username,
+                               style: TextStyle(fontSize: 14.0, fontWeight: FontWeight.bold, color: Colors.white),
+                             ),
+                           )
+                         : _showNotifications // Expanded or animating state
+                             ? (_showExpandedContent && notifications.isNotEmpty) // Expanded, has content, after delay
+                                 ? Column( // Use Column for title + list
+                                     children: [
+                                       Padding(
+                                         padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                         child: Text("Bildirimler", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                                       ),
+                                       Expanded( // Make ListView take remaining space
+                                         child: ListView.builder(
+                                           padding: EdgeInsets.zero, // Remove default padding
+                                           itemCount: notifications.length,
+                                           itemBuilder: (context, index) {
+                                             final notification = notifications[index];
+                                             // ---- Make ListTile Dismissible ----
+                                             return Dismissible(
+                                               key: ValueKey(notification), // Use notification object or a unique ID
+                                               direction: DismissDirection.horizontal,
+                                               onDismissed: (direction) {
+                                                 // Remove the item from the data source
+                                                 Provider.of<NotificationProvider>(context, listen: false)
+                                                     .removeNotification(notification);
+
+                                                 // Optional: Show a confirmation SnackBar
+                                                 ScaffoldMessenger.of(context).removeCurrentSnackBar();
+                                                 ScaffoldMessenger.of(context).showSnackBar(
+                                                   SnackBar(
+                                                     content: Text('${notification.title} silindi'),
+                                                     duration: Duration(seconds: 2),
+                                                    ),
+                                                 );
+                                               },
+                                               // ... Dismissible backgrounds ...
+                                               background: Container(
+                                                 color: Colors.redAccent.withOpacity(0.8),
+                                                 alignment: Alignment.centerLeft,
+                                                 padding: EdgeInsets.symmetric(horizontal: 20.0),
+                                                 child: Icon(Icons.delete_sweep, color: Colors.white),
+                                               ),
+                                               secondaryBackground: Container(
+                                                 color: Colors.redAccent.withOpacity(0.8),
+                                                 alignment: Alignment.centerRight,
+                                                 padding: EdgeInsets.symmetric(horizontal: 20.0),
+                                                 child: Icon(Icons.delete_sweep, color: Colors.white),
+                                               ),
+                                               child: ListTile( // The original ListTile
+                                                 dense: true,
+                                                 title: Text(notification.title, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                                                 subtitle: Text(notification.body, style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                               ),
+                                             );
+                                             // ---- End Dismissible ----
+                                           },
+                                         ),
+                                       ),
+                                     ],
+                                   )
+                                 : marqueeWidget // Show marquee if expanded but empty OR during animation delay
+                             : marqueeWidget, // Collapsed state shows marquee
+                   ),
+                 ),
               ),
             ),
           ),
@@ -313,15 +394,17 @@ class _AnaSayfaState extends State<AnaSayfa> {
     // Ensure AppBar is built above the page content
     return Stack(
       children: [
-        // Add padding to the top of the page content so it doesn't hide behind the AppBar
+        // Add fixed padding to the top of the page content
+        // The AppBar will overlay this area. Adjust '60.0' if needed.
         Padding(
-          padding: EdgeInsets.only(top: 5.0), // Start with the collapsed AppBar height
+          padding: EdgeInsets.only(top: 5.0), // Reverted to fixed padding
           child: _pages[_selectedIndex],
         ),
         _buildAppBar(), // AppBar is drawn on top
       ],
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
