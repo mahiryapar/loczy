@@ -85,7 +85,7 @@ class Message {
       time: formattedTime,
       // Handle bool/int/string representations of read status
       // MQTT might send 'isRead' directly as bool
-      isRead: (json['okundu_mu'] == 1 || json['okundu_mu'] == true || json['okundu_mu'] == 'true' || json['isRead'] == true),
+      isRead: (json['okundu_mu'] == 1),
       isLocal: false, // Messages from JSON are never local-only
     );
   }
@@ -849,6 +849,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {  // A
             }
           });
         }
+        
+        // After successfully sending the message, also send a notification to the recipient
+        _sendChatNotificationToUser(widget.userId, messageText);
       } catch (e) {
          print("Error (ChatPage - MQTT): Failed to publish message - $e");
       }
@@ -978,20 +981,17 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {  // A
       });
     }
 
-    // 1. Send to API (messages.php) via POST
+    // 1. Send to API (messages.php) using GET request with "okundu" query parameter
     bool apiSuccess = false;
     try {
-      final url = Uri.parse('$apiUrl/routers/messages.php');
+      // Use GET request with okundu as query parameter instead of POST with body
+      final url = Uri.parse('$apiUrl/routers/messages.php?okundu=$messageId');
       final response = await http.post(
         url,
         headers: {
           'Authorization': 'Bearer $bearerToken',
           'Content-Type': 'application/json',
         },
-        body: json.encode({
-          'okundu_id': messageId,
-          // Backend infers reader from token
-        }),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -1030,6 +1030,49 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {  // A
     } else if (apiSuccess) {
         print("DEBUG (ChatPage - MQTT): Cannot publish read receipt (API Success: $apiSuccess, Client: ${_mqttClient != null}, Connected: $_isMqttConnected, ChatID: $_currentChatId)");
     }
+  }
+
+  // New method to send chat notification to user
+  void _sendChatNotificationToUser(int recipientId, String messageText) {
+    if (_mqttClient == null || !_isMqttConnected || _myUserId == null) {
+      print("DEBUG (ChatPage): Cannot send notification - MQTT not connected");
+      return;
+    }
+
+    // Get current user's name from SharedPreferences
+    SharedPreferences.getInstance().then((prefs) {
+      final senderName = prefs.getString('userNickname') ?? 'Bilinmeyen Kullanıcı';
+      
+      // Create notification data with chat information
+      final notificationData = {
+        'type': 'chat_message',
+        'title': senderName,  // Name of sender
+        'body': messageText,  // Message content
+        'senderId': _myUserId,  // ID of sender (current user)
+        'chatId': _currentChatId,  // ID of the chat
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+
+      // Topic for the recipient's notifications
+      final notificationTopic = 'user/$recipientId/notifications';
+      
+      // Build and publish the notification message
+      final builder = MqttClientPayloadBuilder();
+      final jsonString = json.encode(notificationData);
+      builder.addUTF8String(jsonString);
+
+      print("DEBUG (ChatPage - MQTT): Publishing notification to $notificationTopic");
+      try {
+        _mqttClient!.publishMessage(
+          notificationTopic,
+          MqttQos.atLeastOnce,
+          builder.payload!
+        );
+        print("DEBUG (ChatPage - MQTT): Notification sent successfully");
+      } catch (e) {
+        print("ERROR (ChatPage - MQTT): Failed to publish notification - $e");
+      }
+    });
   }
 
   @override
@@ -1153,7 +1196,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {  // A
     );
   }
 
-  // Update _buildMessageBubble - No VisibilityDetector needed
+  // Update _buildMessageBubble - Add VisibilityDetector for received messages
   Widget _buildMessageBubble(Message message) {
      final bool isSentByMe = message.senderId == _myUserId!;
      final align = isSentByMe ? CrossAxisAlignment.end : CrossAxisAlignment.start;
@@ -1171,8 +1214,8 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {  // A
             bottomRight: Radius.circular(15),
           );
 
-    // Return the Container directly
-    return Container(
+    // Build the message content widget
+    Widget messageContent = Container(
       margin: EdgeInsets.symmetric(vertical: 4),
       child: Column(
         crossAxisAlignment: isSentByMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -1209,13 +1252,31 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {  // A
                      padding: const EdgeInsets.only(left: 4.0),
                      child: Icon(Icons.schedule, size: 10, color: Colors.grey),
                    ),
-                 // Optional: Add error icon if API call failed (requires adding state to Message)
               ],
             ),
           ),
         ],
       ),
     );
+
+    // For messages NOT sent by me (received messages), wrap in VisibilityDetector
+    if (!isSentByMe) {
+      return VisibilityDetector(
+        key: Key('msg_${message.id}'), // Unique key for each message
+        onVisibilityChanged: (visibilityInfo) {
+          var visiblePercentage = visibilityInfo.visibleFraction * 100;
+          // Mark as read if >75% visible and not already read
+          if (visiblePercentage > 75 && !message.isRead && !_locallyMarkedAsSeenIds.contains(message.id) && message.id != 0) {
+            print("DEBUG (ChatPage): Message ${message.id} became visible (>${visiblePercentage.toStringAsFixed(1)}%) and is not marked as read. Marking as read.");
+            _markMessageAsRead(message.id);
+          }
+        },
+        child: messageContent,
+      );
+    } else {
+      // Messages sent by me don't need visibility detection
+      return messageContent;
+    }
   }
 
   Widget _buildMessageInputBar() {

@@ -177,7 +177,7 @@ class MqttService {
         final String payloadString = MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
         final String topic = c[0].topic;
         print('MQTT Service: Received message: topic is $topic, payload is $payloadString');
-        _handleMessage(topic, payloadString); // Handle notifications or other non-chat messages
+        _processMessage(topic, payloadString); // Handle notifications or other non-chat messages
       }
     });
   }
@@ -231,6 +231,49 @@ class MqttService {
 
   void _pong() {
     print('MQTT Service: Ping response received');
+  }
+
+  void _processMessage(String topic, String message) {
+    try {
+      final Map<String, dynamic> data = json.decode(message);
+      
+      // Handle personal notifications for the user
+      if (topic.startsWith('user/') && topic.endsWith('/notifications')) {
+        _processUserNotification(data);
+      } 
+      // Handle other message types...
+    } catch (e) {
+      print('ERROR (MQTT Service): Error processing message - $e');
+    }
+  }
+
+  void _processUserNotification(Map<String, dynamic> data) {
+    // Check if this is a chat message notification
+    if (data['type'] == 'chat_message') {
+      final String title = data['title'] ?? 'Yeni Mesaj';
+      final String body = data['body'] ?? '';
+      final int senderId = data['senderId'] ?? 0;
+      final int? chatId = data['chatId'];
+      
+      // Create a payload with chat navigation information
+      final payload = json.encode({
+        'type': 'chat_message',
+        'senderId': senderId,
+        'chatId': chatId,
+        'senderName': title,
+      });
+      
+      // Show notification
+      _notificationService.showNotification(
+        senderId.hashCode, // Use sender ID as notification ID
+        title,
+        body,
+        payload: payload,
+      );
+      
+      // Also add to notification provider for AppBar display
+      _notificationProvider.addNotification(title, body);
+    }
   }
 
   void _handleMessage(String topic, String payload) {

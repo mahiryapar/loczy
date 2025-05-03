@@ -11,6 +11,9 @@ import 'dart:io';
 // Import MqttService
 import 'package:loczy/services/mqtt_service.dart';
 
+// At the top of your main.dart file, add:
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Instantiate NotificationService here
@@ -55,6 +58,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ThemeMode.system,

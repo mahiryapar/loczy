@@ -1,4 +1,5 @@
 import 'dart:async'; // Import async library for Timer
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -14,6 +15,9 @@ import 'package:marquee/marquee.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:loczy/pages/home_page.dart';
+import 'package:loczy/config_getter.dart';
+import 'package:http/http.dart' as http;
+import 'package:loczy/pages/chat_page.dart'; // Import your chat page
 
 class AnaSayfa extends StatefulWidget {
   final Function logout;
@@ -178,6 +182,127 @@ class _AnaSayfaState extends State<AnaSayfa> {
     }
   }
 
+  // Add new method to handle notification tap based on its content
+  void _handleNotificationTap(NotificationModel notification) {
+    // Extract potential chat data from notification text
+    // This is a simple approach - a more robust approach would be to store metadata with notifications
+    final String title = notification.title; // Assuming this is sender's name
+    
+    // Check if we can find a user with this name to get their ID
+    _findUserByName(title).then((userData) {
+      if (userData != null) {
+        final int userId = userData['id'];
+        final int? chatId = userData['chatId']; // Might be null for new chats
+        
+        // Navigate to the chat page
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChatPage(
+              chatId: chatId,
+              userId: userId,
+              name: userData['name'],
+              username: userData['username'],
+              profilePicUrl: userData['profilePicUrl'],
+            ),
+          ),
+        ).then((_) {
+          // Optionally refresh data when returning
+          _toggleNotifications(); // Close notification panel
+        });
+      } else {
+        // If we couldn't find the user, just close the notification panel
+        _toggleNotifications(); 
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Kullanıcı bilgisine erişilemedi.')),
+        );
+      }
+    });
+  }
+
+  // Helper method to find user by name
+  Future<Map<String, dynamic>?> _findUserByName(String name) async {
+    int? foundChatId; // Variable to store the chat ID if found
+
+    try {
+      // 1. Find the target user by nickname
+      final userResponse = await http.get(
+        // Assuming the endpoint expects nickname for lookup
+        Uri.parse('${ConfigLoader.apiUrl}/routers/users.php?nickname=$name'),
+        headers: {
+          'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (userResponse.statusCode == 200) {
+        final Map<String, dynamic> userData = json.decode(userResponse.body);
+
+        // Check if user data is valid and contains an ID
+        if (userData.isNotEmpty && userData['id'] != null) {
+          final int targetUserId = userData['id'];
+
+          // 2. Get the current user's ID from SharedPreferences
+          SharedPreferences prefs = await SharedPreferences.getInstance();
+          final int? currentUserId = prefs.getInt('userId');
+
+
+          // 3. Fetch chats for the current user if ID is available
+          if (currentUserId != null) {
+            try {
+              final chatResponse = await http.get(
+                Uri.parse('${ConfigLoader.apiUrl}/routers/chats.php?userId=$currentUserId'),
+                headers: {
+                  'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+                  'Content-Type': 'application/json',
+                },
+              );
+
+              if (chatResponse.statusCode == 200) {
+                final List<dynamic> chats = json.decode(chatResponse.body);
+                // 4. Find the chat involving the target user
+                for (var chat in chats) {
+                  if (chat is Map<String, dynamic>) {
+                    // Check both potential user ID fields in the chat data
+                    if ((chat['kullanici1_id'] == targetUserId && chat['kullanici2_id'] == currentUserId) ||
+                        (chat['kullanici2_id'] == targetUserId && chat['kullanici1_id'] == currentUserId)) {
+                      foundChatId = chat['id'];
+                      break; // Found the chat, no need to look further
+                    }
+                  }
+                }
+              } else {
+                print('Error fetching chats: ${chatResponse.statusCode} ${chatResponse.body}');
+              }
+            } catch (e) {
+              print('Error during chat fetch: $e');
+            }
+          } else {
+             print('Could not get current user ID from SharedPreferences.');
+          }
+
+
+          // 5. Return the combined user and chat data
+          return {
+            'id': targetUserId,
+            'name': (userData['isim'] ?? '') + ' ' + (userData['soyisim'] ?? ''),
+            'username': userData['nickname'] ?? 'bilinmeyen',
+            'profilePicUrl': userData['profil_fotosu_url'] ?? ConfigLoader.defaultProfilePhoto,
+            'chatId': foundChatId, // Use the found chat ID (or null)
+          };
+        } else {
+           print('User data received from users.php is empty or missing ID.');
+           return null; // User not found or data invalid
+        }
+      } else {
+         print('Error finding user by name: ${userResponse.statusCode} ${userResponse.body}');
+         return null; // User lookup failed
+      }
+    } catch (e) {
+      print('Error in _findUserByName: $e');
+      return null;
+    }
+  }
 
   Widget _buildAppBar() {
     // Use Consumer to listen to NotificationProvider changes
@@ -311,6 +436,7 @@ class _AnaSayfaState extends State<AnaSayfa> {
                                                  dense: true,
                                                  title: Text(notification.title, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                                                  subtitle: Text(notification.body, style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                                 onTap: () => _handleNotificationTap(notification), // Add this line to handle taps
                                                ),
                                              );
                                              // ---- End Dismissible ----
