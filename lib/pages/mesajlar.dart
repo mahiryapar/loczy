@@ -8,9 +8,10 @@ import 'package:timeago/timeago.dart' as timeago; // Import timeago
 // Assuming FollowUser model is accessible, e.g., from takip_listele or defined here
 import 'package:loczy/pages/takip_listele.dart'; // Import FollowUser model
 
-// ChatPreview class remains the same
+// ChatPreview class updated
 class ChatPreview {
-  final int userId;
+  final int chatId; // Added: ID of the chat itself (sohbet_id)
+  final int userId; // ID of the other user
   final String name;
   final String username;
   final String profilePicUrl;
@@ -18,6 +19,7 @@ class ChatPreview {
   final String time;
 
   ChatPreview({
+    required this.chatId, // Added
     required this.userId,
     required this.name,
     required this.username,
@@ -27,7 +29,8 @@ class ChatPreview {
   });
 
   // Add a factory constructor for easier creation from API data + user details
-  factory ChatPreview.fromApi(Map<String, dynamic> chatData, Map<String, dynamic> otherUserDetails, int otherUserId) {
+  factory ChatPreview.fromApi(Map<String, dynamic> chatData, Map<String, dynamic> otherUserDetails, int otherUserId, int currentUserId) {
+    // ... existing time formatting logic ...
     String formattedTime = 'Tarih Yok';
     dynamic dateValue = chatData['son_mesaj_tarihi']; // Get the value
 
@@ -43,9 +46,12 @@ class ChatPreview {
     // Try parsing if we have a valid date string
     if (dateString != null) {
       try {
+        // Parse the date and convert to Turkey time (UTC+3)
         DateTime dt = DateTime.parse(dateString);
-        // Use timeago for relative time formatting
-        formattedTime = timeago.format(dt, locale: 'tr'); // Use Turkish locale
+        // Add 3 hours to UTC time to get UTC+3
+        DateTime turkeyTime = dt.add(Duration(hours: 3));
+        // Use timeago for relative time formatting with Turkish locale
+        formattedTime = timeago.format(turkeyTime, locale: 'tr');
       } catch (e) {
         print("Error parsing date string: '$dateString' - $e");
         // Keep formattedTime as 'Tarih Yok' or handle differently
@@ -54,14 +60,44 @@ class ChatPreview {
        print("DEBUG (Messages): son_mesaj_tarihi is null or not in expected format: $dateValue");
     }
 
+    // Safely parse chatId (sohbet_id)
+    int? parsedChatId;
+    if (chatData['id'] is int) {
+      parsedChatId = chatData['id'];
+    } else if (chatData['id'] is String) {
+      parsedChatId = int.tryParse(chatData['id']);
+    }
+    if (parsedChatId == null) {
+       print("DEBUG (Messages): Could not parse sohbet_id: ${chatData['sohbet_id']}");
+       // Handle error - maybe assign a default or throw? For now, default to 0.
+       parsedChatId = 0;
+    }
+
+    // Format last message with "Siz: " prefix if the current user sent it
+    String messageText = chatData['son_mesaj_metni'] ?? '';
+    dynamic lastMessageSenderId = chatData['son_mesaji_atan_id'];
+    
+    // Parse sender ID for comparison
+    int? parsedSenderId;
+    if (lastMessageSenderId is int) {
+      parsedSenderId = lastMessageSenderId;
+    } else if (lastMessageSenderId is String) {
+      parsedSenderId = int.tryParse(lastMessageSenderId);
+    }
+    
+    // Add "Siz: " prefix if current user sent the last message
+    if (parsedSenderId != null && parsedSenderId == currentUserId) {
+      messageText = "Siz: $messageText";
+    }
 
     return ChatPreview(
-      userId: otherUserId, // This is the ID of the *other* user in the chat
+      chatId: parsedChatId, // Use the parsed chat ID
+      userId: otherUserId,
       name: otherUserDetails['isim']+' '+otherUserDetails['soyisim'] ?? 'Bilinmeyen Kullanıcı',
-      username: otherUserDetails['nickname'] ?? 'bilinmeyen', // Assuming username field is 'kullanici_adi'
+      username: otherUserDetails['nickname'] ?? 'bilinmeyen',
       profilePicUrl: otherUserDetails['profil_fotosu_url'] ?? ConfigLoader.defaultProfilePhoto,
-      lastMessage: chatData['son_mesaj_metni'] ?? '',
-      time: formattedTime, // Use the timeago formatted time
+      lastMessage: messageText, // Use formatted message text
+      time: formattedTime,
     );
   }
 }
@@ -318,8 +354,8 @@ class _MessagesPageState extends State<MessagesPage> {
                   // Fetch the other user's details
                   Map<String, dynamic> otherUserDetails = await _fetchUserDetails(otherUserId);
 
-                  // Create ChatPreview object
-                  return ChatPreview.fromApi(chatJson, otherUserDetails, otherUserId);
+                  // Create ChatPreview object - now passing current user ID
+                  return ChatPreview.fromApi(chatJson, otherUserDetails, otherUserId, _currentUserId!);
 
                 } catch (e, stackTrace) { // Also catch stackTrace for better debugging
                   print("DEBUG (Messages): Error processing individual chat: $e");
@@ -469,6 +505,8 @@ class _MessagesPageState extends State<MessagesPage> {
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) => ChatPage(
+                                        // Pass chatId here
+                                        chatId: item.chatId, // Pass the chat ID
                                         userId: item.userId,
                                         name: item.name,
                                         username: item.username,
@@ -496,10 +534,12 @@ class _MessagesPageState extends State<MessagesPage> {
                                 trailing: Icon(Icons.message_outlined, color: Colors.grey, size: 20), // Icon indicating new chat
                                 onTap: () {
                                   // Navigate to ChatPage to start a new chat
+                                  // chatId is intentionally null here
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) => ChatPage(
+                                        chatId: null, // No existing chat ID
                                         userId: item.id,
                                         name: item.nickname, // Pass nickname as name
                                         username: item.name, // Pass name as username (adjust if needed)

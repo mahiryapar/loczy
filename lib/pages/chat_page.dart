@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http; // Import http package
 import 'dart:convert'; // Import convert package
+import 'dart:async'; // Import math for min/max
 import 'package:loczy/pages/kullanici_goster.dart'; // Import profile page
 import 'package:shared_preferences/shared_preferences.dart'; // Import shared_preferences
 import 'package:loczy/config_getter.dart'; // Import ConfigLoader
 import 'package:timeago/timeago.dart' as timeago; // Import timeago
-import 'package:visibility_detector/visibility_detector.dart'; // Import VisibilityDetector
+import 'package:visibility_detector/visibility_detector.dart';
+import 'package:mqtt_client/mqtt_client.dart'; // Import MQTT Client
+import 'package:mqtt_client/mqtt_server_client.dart'; // Import MQTT Server Client
+import 'dart:io'; // For Platform check if needed
+import 'dart:math';
 
 // Updated message model to match API response
 class Message {
@@ -14,7 +19,9 @@ class Message {
   final int senderId;
   final int receiverId;
   final String time; // Assuming API provides formatted time/date string
-  final bool isRead; // Assuming API provides read status
+  bool isRead; // Make isRead mutable to update from MQTT
+  final bool isLocal; // Flag to indicate if message is only local (not yet confirmed from server/MQTT)
+  final int? tempId; // Temporary ID for local messages before server ID is known
 
   Message({
     required this.id,
@@ -23,12 +30,16 @@ class Message {
     required this.receiverId,
     required this.time,
     required this.isRead,
+    this.isLocal = false, // Default to false
+    this.tempId,
   });
 
-  // Factory constructor to create a Message from JSON
+  // Factory constructor to create a Message from JSON (API or MQTT)
   factory Message.fromJson(Map<String, dynamic> json, int currentUserId) {
+    // ... existing date parsing logic ...
     String formattedTime = 'Tarih Yok'; // Default value
-    dynamic dateValue = json['mesaj_tarihi']; // Get the date value
+    // Handle potential differences in MQTT payload vs API
+    dynamic dateValue = json['mesaj_tarihi'] ?? json['time']; // Check both API and potential MQTT field names
 
     String? dateString;
 
@@ -36,116 +47,435 @@ class Message {
     if (dateValue is String) {
       dateString = dateValue;
     } else if (dateValue is Map<String, dynamic> && dateValue['date'] is String) {
-      // Handle nested date structure like {"date": "...", "timezone_type": ..., "timezone": ...}
       dateString = dateValue['date'];
     }
 
     // Try parsing if we have a valid date string
     if (dateString != null) {
       try {
-        // Remove potential microseconds if present (adjust based on your exact format)
+        // Remove potential microseconds if present
         if (dateString.contains('.')) {
           dateString = dateString.substring(0, dateString.indexOf('.'));
         }
+        // Handle potential 'Z' for UTC time
+        if (dateString.endsWith('Z')) {
+           dateString = dateString.substring(0, dateString.length - 1);
+        }
+        
+        // Parse the date and convert to Turkey time (UTC+3)
         DateTime dt = DateTime.parse(dateString);
-        // Use timeago for relative time formatting
-        formattedTime = timeago.format(dt, locale: 'tr'); // Use Turkish locale
+        // Add 3 hours to UTC time to get UTC+3
+        DateTime turkeyTime = dt.add(Duration(hours: 3));
+        formattedTime = timeago.format(turkeyTime, locale: 'tr');
       } catch (e) {
-        print("DEBUG (ChatPage): Error parsing date string: '$dateString' - $e");
-        // Keep formattedTime as 'Tarih Yok' or handle differently
+        print("DEBUG (ChatPage - Message.fromJson): Error parsing date string: '$dateString' - $e");
       }
     } else {
-       print("DEBUG (ChatPage): mesaj_tarihi is null or not in expected format: $dateValue");
+       print("DEBUG (ChatPage - Message.fromJson): Date field is null or not in expected format: $dateValue");
     }
 
+
     return Message(
-      id: json['id'] ?? 0, // Provide default or handle potential null
-      text: json['mesaj'] ?? '',
-      senderId: json['kimden_id'] ?? 0,
-      receiverId: json['kime_id'] ?? 0,
-      time: formattedTime, // Use the formatted time
-      isRead: json['okundu_mu'] == 1 || json['okundu_mu'] == true, // Handle bool/int
+      // Use 'id' from API or MQTT payload. Provide default if missing.
+      // MQTT might send 'messageId' or just 'id'
+      id: json['id'] ?? json['messageId'] ?? 0,
+      text: json['mesaj'] ?? json['text'] ?? '', // Check both API and MQTT field names
+      senderId: json['kimden_id'] ?? json['senderId'] ?? 0,
+      receiverId: json['kime_id'] ?? json['receiverId'] ?? 0,
+      time: formattedTime,
+      // Handle bool/int/string representations of read status
+      // MQTT might send 'isRead' directly as bool
+      isRead: (json['okundu_mu'] == 1 || json['okundu_mu'] == true || json['okundu_mu'] == 'true' || json['isRead'] == true),
+      isLocal: false, // Messages from JSON are never local-only
     );
   }
+
+  // Add toJson method for sending via MQTT
+  Map<String, dynamic> toJson() => {
+        'id': id, // Send the actual ID if known, otherwise maybe 0 or null?
+        'text': text,
+        'senderId': senderId,
+        'receiverId': receiverId,
+        // Send time in Turkey time zone (UTC+3)
+        'time': DateTime.now().toUtc().add(Duration(hours: 3)).toIso8601String(),
+        'isRead': isRead,
+        // Add a type field for MQTT routing if needed (optional here, handled by topic)
+        // 'type': 'message',
+      };
 }
 
 class ChatPage extends StatefulWidget {
+  final int? chatId; // Optional: ID of the existing chat (sohbet_id)
   final int userId; // This is the ID of the person being chatted with
   final String name;
   final String username;
   final String profilePicUrl;
-  // You might need to pass the current user's ID as well
-  // final int currentUserId;
 
   const ChatPage({
     Key? key,
+    this.chatId, // Make chatId optional
     required this.userId,
     required this.name,
     required this.username,
     required this.profilePicUrl,
-    // required this.currentUserId,
   }) : super(key: key);
 
   @override
   _ChatPageState createState() => _ChatPageState();
 }
 
-class _ChatPageState extends State<ChatPage> {
+class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {  // Add WidgetsBindingObserver
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   List<Message> _messages = [];
   bool _isLoadingMessages = false;
   bool _allMessagesLoaded = false;
-  // int _messageOffset = 0; // REMOVED: Use _messages.length instead
   final int _messageLimit = 20; // Number of messages to fetch per request
   bool _isFetchingUserId = true; // Flag to track user ID fetching
   final String apiUrl = ConfigLoader.apiUrl; // Get apiUrl from ConfigLoader
   final String bearerToken = ConfigLoader.bearerToken; // Get bearerToken from ConfigLoader
-  int? _myUserId; // Make _myUserId nullable
-  Set<int> _locallyMarkedAsSeenIds = {}; // Track messages marked as seen in this session
-  double? _lastMaxScrollExtentBeforeLoad; // To preserve scroll position
+  int? _myUserId;
+  Set<int> _locallyMarkedAsSeenIds = {};
+  double? _lastMaxScrollExtentBeforeLoad;
+  bool _isKeyboardVisible = false;  // Track keyboard visibility
+
+  // --- MQTT Client Variables ---
+  MqttServerClient? _mqttClient;
+  bool _isMqttConnected = false;
+  int? _currentChatId; // Store the actual chat ID for the topic
+  bool _isSubscribed = false;
+  String? _chatTopicId; // Added declaration for chat topic ID (used for logging/fallback)
+  // --- End MQTT Client Variables ---
+
 
   @override
   void initState() {
     super.initState();
-    VisibilityDetectorController.instance.updateInterval = Duration.zero; // Trigger check immediately
-    timeago.setLocaleMessages('tr', timeago.TrMessages()); // Set timeago locale
-    // Add listener to scroll controller for pagination
+    VisibilityDetectorController.instance.updateInterval = Duration.zero;
+    timeago.setLocaleMessages('tr', timeago.TrMessages());
     _scrollController.addListener(_scrollListener);
-    // Fetch user ID first, then fetch messages
-    _loadMyUserIdAndFetchMessages();
+    // Fetch user ID first, then fetch messages and initialize MQTT
+    _loadMyUserIdAndInitialize();
+    _initializeMqttClient(); // Initialize MQTT client connection attempt
+    
+    // Add widget binding observer to detect keyboard visibility changes
+    WidgetsBinding.instance.addObserver(this);
   }
 
-  // New function to load user ID and then fetch messages
-  Future<void> _loadMyUserIdAndFetchMessages() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    if (mounted) { // Check if the widget is still in the tree
-      setState(() {
-        _myUserId = prefs.getInt('userId');
-        _isFetchingUserId = false; // Done fetching user ID
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // No longer needed to get MqttService from Provider
+    // When dependencies change and we have messages, mark visible ones as read
+    if (_messages.isNotEmpty && _myUserId != null) {
+      // Add a slight delay to ensure UI is built
+      Future.delayed(Duration(milliseconds: 500), () {
+        if (mounted) {
+          _markVisibleMessagesAsRead();
+        }
       });
+    }
+  }
 
-      if (_myUserId == null) {
-        // Handle error: User ID not found in SharedPreferences
-        print("Error (ChatPage): User ID not found in SharedPreferences."); // Log error
-        // Optionally navigate back or show an error message permanently
-        setState(() {
-           _isLoadingMessages = false; // Ensure loading stops if user ID fails
-           _allMessagesLoaded = true; // Prevent further loading attempts
-        });
-      } else {
-        // User ID loaded successfully, fetch initial messages
-        _fetchMessages(initialLoad: true);
+  // Override didChangeMetrics to detect keyboard visibility
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    final bottomInset = WidgetsBinding.instance.window.viewInsets.bottom;
+    final newValue = bottomInset > 0.0;
+    if (newValue != _isKeyboardVisible) {
+      setState(() {
+        _isKeyboardVisible = newValue;
+      });
+      // Scroll to bottom when keyboard becomes visible
+      if (newValue) {
+        _scrollToBottom(withDelay: true);
       }
     }
   }
 
+  // Initialize and connect MQTT Client
+  Future<void> _initializeMqttClient() async {
+    final String brokerIp = ConfigLoader.vm_ip; // Get broker IP
+    final String clientId = 'flutter_client_${_myUserId ?? DateTime.now().millisecondsSinceEpoch}'; // Unique client ID
+
+    _mqttClient = MqttServerClient(brokerIp, clientId);
+    _mqttClient!.port = 1883; // Default MQTT port
+    _mqttClient!.logging(on: false); // Disable logging for production
+    _mqttClient!.keepAlivePeriod = 60;
+    _mqttClient!.onDisconnected = _onMqttDisconnected;
+    _mqttClient!.onConnected = _onMqttConnected;
+    _mqttClient!.onSubscribed = _onMqttSubscribed;
+    _mqttClient!.pongCallback = _pong;
+
+    final connMessage = MqttConnectMessage()
+        .withClientIdentifier(clientId)
+        .startClean() // Clean session for simplicity
+        .withWillQos(MqttQos.atLeastOnce);
+    _mqttClient!.connectionMessage = connMessage;
+
+    try {
+      print('DEBUG (ChatPage - MQTT): Connecting to broker $brokerIp...');
+      await _mqttClient!.connect();
+    } catch (e) {
+      print('DEBUG (ChatPage - MQTT): Client exception - $e');
+      _mqttClient?.disconnect();
+      _mqttClient = null;
+      _isMqttConnected = false;
+    }
+  }
+
+  void _onMqttConnected() {
+    print('DEBUG (ChatPage - MQTT): Connected');
+    if (mounted) {
+      setState(() {
+        _isMqttConnected = true;
+      });
+    } else {
+       _isMqttConnected = true; // Update state even if not mounted yet
+    }
+
+    // Listen for incoming messages on all topics
+    _mqttClient!.updates!.listen(_onMqttMessage);
+
+    // Subscribe to the specific chat topic if chat ID is known
+    _subscribeToChatTopic();
+  }
+
+  void _onMqttDisconnected() {
+    print('DEBUG (ChatPage - MQTT): Disconnected');
+     if (mounted) {
+       setState(() {
+         _isMqttConnected = false;
+         _isSubscribed = false;
+       });
+     } else {
+        _isMqttConnected = false;
+        _isSubscribed = false;
+     }
+    // Optionally implement reconnection logic here
+  }
+
+  void _onMqttSubscribed(String topic) {
+    print('DEBUG (ChatPage - MQTT): Subscribed to topic: $topic');
+    if (topic == 'chat/$_currentChatId/messages') {
+       if (mounted) {
+         setState(() {
+           _isSubscribed = true;
+         });
+       } else {
+          _isSubscribed = true;
+       }
+    }
+  }
+
+  void _pong() {
+    // print('DEBUG (ChatPage - MQTT): Ping response received');
+  }
+
+  // Subscribe to the specific chat topic
+  void _subscribeToChatTopic() {
+    if (_mqttClient != null && _isMqttConnected && _currentChatId != null && !_isSubscribed) {
+      final topic = 'chat/$_currentChatId/messages';
+      print('DEBUG (ChatPage - MQTT): Attempting to subscribe to $topic');
+      _mqttClient!.subscribe(topic, MqttQos.atLeastOnce);
+    } else {
+       print('DEBUG (ChatPage - MQTT): Cannot subscribe yet (Client: ${_mqttClient != null}, Connected: $_isMqttConnected, ChatID: $_currentChatId, Subscribed: $_isSubscribed)');
+    }
+  }
+
+  // Handle incoming MQTT messages - Fix encoding for emojis and Turkish characters
+  void _onMqttMessage(List<MqttReceivedMessage<MqttMessage?>>? c) {
+    if (c == null || c.isEmpty || c[0].payload == null) return;
+
+    final MqttPublishMessage recMess = c[0].payload as MqttPublishMessage;
+    // Use utf8.decode for proper character support
+    final String payload = utf8.decode(recMess.payload.message);
+    final String topic = c[0].topic;
+
+    print('DEBUG (ChatPage - MQTT): Received message: $payload from topic: $topic');
+
+    // Ensure message is for the current chat topic
+    if (topic != 'chat/$_currentChatId/messages') {
+      print('DEBUG (ChatPage - MQTT): Ignoring message from unrelated topic $topic');
+      return;
+    }
+
+    try {
+      final Map<String, dynamic> messageData = json.decode(payload);
+
+      // Check if it's a read receipt or a new message
+      if (messageData['type'] == 'read') {
+        _handleReadReceipt(messageData);
+      } else {
+        _handleNewMessage(messageData);
+      }
+    } catch (e) {
+      print('Error (ChatPage - MQTT): Failed to decode or handle message: $e');
+    }
+  }
+
+  void _handleNewMessage(Map<String, dynamic> messageData) {
+     if (_myUserId == null) return; // Cannot process if own ID is unknown
+
+     final newMessage = Message.fromJson(messageData, _myUserId!);
+
+     // Ignore messages sent by self (MQTT echo)
+     if (newMessage.senderId == _myUserId) {
+       print("DEBUG (ChatPage - MQTT): Ignoring self-sent message echo.");
+       // Optional: Could use this echo to confirm MQTT send success
+       return;
+     }
+
+     // Avoid adding duplicates if already received via API fetch
+     if (_messages.any((m) => m.id == newMessage.id && newMessage.id != 0)) {
+        print("DEBUG (ChatPage - MQTT): Ignoring duplicate message ID: ${newMessage.id}");
+        return;
+     }
+
+     // Add the new message to the list
+     if (mounted) {
+       setState(() {
+         _messages.add(newMessage);
+       });
+       
+       // Improved: Use a small delay to ensure scrolling works after state update is complete
+       _scrollToBottom(withDelay: true);
+       
+       // Mark as read immediately if received while chat is open
+       _markMessageAsRead(newMessage.id);
+     }
+  }
+
+  // Enhanced handler for read receipts
+  void _handleReadReceipt(Map<String, dynamic> receiptData) {
+     if (_myUserId == null) return;
+
+     final int? messageId = receiptData['messageId'];
+     final int? readerId = receiptData['readerId'];
+     final String? timestamp = receiptData['timestamp'];
+
+     print("DEBUG (ChatPage - MQTT): Processing read receipt: messageId=$messageId, readerId=$readerId, timestamp=$timestamp");
+
+     // Check if the receipt is from the other user for one of my messages
+     if (messageId != null && readerId == widget.userId) {
+        print("DEBUG (ChatPage - MQTT): Received read receipt for message $messageId from user $readerId");
+        if (mounted) {
+           setState(() {
+              // Try to find the message in our messages list
+              final messageIndex = _messages.indexWhere((m) => m.id == messageId && m.senderId == _myUserId);
+              if (messageIndex != -1) {
+                 _messages[messageIndex].isRead = true;
+                 print("DEBUG (ChatPage - MQTT): Marked message $messageId as read in UI.");
+              } else {
+                 print("DEBUG (ChatPage - MQTT): Could not find message $messageId in messages list to mark as read.");
+                 // Dump the first few messages for debugging
+                 for (int i = 0; i < min(5, _messages.length); i++) {
+                    final m = _messages[i];
+                    print("DEBUG: Message[$i]: id=${m.id}, senderId=${m.senderId}, text=${m.text.substring(0, min(10, m.text.length))}...");
+                 }
+              }
+           });
+        }
+     } else {
+        print("DEBUG (ChatPage - MQTT): Ignoring read receipt (messageId=$messageId, readerId=$readerId, myUserId=$_myUserId, otherUserId=${widget.userId})");
+     }
+  }
+
+  // Add method to mark all visible messages as read (call this when chat is opened)
+  void _markVisibleMessagesAsRead() {
+    if (_myUserId == null) return;
+    
+    print("DEBUG (ChatPage): Checking for messages to mark as read");
+    
+    // Find all messages from the other user that aren't marked as read
+    final messagesToMark = _messages.where((m) => 
+      m.senderId == widget.userId && 
+      !m.isRead && 
+      !_locallyMarkedAsSeenIds.contains(m.id) &&
+      m.id != 0 // Skip temporary messages
+    ).toList();
+    
+    print("DEBUG (ChatPage): Found ${messagesToMark.length} messages to mark as read");
+    
+    // Mark each message as read
+    for (final message in messagesToMark) {
+      print("DEBUG (ChatPage): Auto-marking message ${message.id} as read");
+      _markMessageAsRead(message.id);
+    }
+  }
+
+  Future<void> _loadMyUserIdAndInitialize() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    int? loadedUserId;
+    if (mounted) {
+      loadedUserId = prefs.getInt('userId');
+      setState(() {
+        _myUserId = loadedUserId;
+        _isFetchingUserId = false;
+        _currentChatId = widget.chatId; // Store initial chat ID
+      });
+    } else {
+       loadedUserId = prefs.getInt('userId'); // Load even if not mounted
+       _myUserId = loadedUserId;
+       _currentChatId = widget.chatId;
+    }
+
+
+    if (_myUserId == null) {
+      print("Error (ChatPage): User ID not found in SharedPreferences.");
+      if (mounted) {
+        setState(() {
+           _isLoadingMessages = false;
+           _allMessagesLoaded = true;
+        });
+      }
+    } else {
+      // Determine chat topic ID (for logging or fallback)
+      if (_currentChatId != null) {
+        _chatTopicId = _currentChatId.toString(); // Use actual chat ID if available
+        print("DEBUG (ChatPage): Using provided chatId: $_currentChatId for MQTT topic base.");
+        // Attempt subscription now if MQTT is already connected
+        _subscribeToChatTopic();
+      } else {
+        // Generate potential ID for logging, but MQTT needs the real one
+        _chatTopicId = _getChatTopicId(_myUserId!, widget.userId);
+        print("DEBUG (ChatPage): ChatId is null initially. Generated potential ID: $_chatTopicId. MQTT subscription deferred.");
+      }
+
+      // Fetch initial messages
+      await _fetchMessages(initialLoad: true); // Wait for initial messages
+    }
+  }
+
+  // Generate a consistent chat topic ID (keep for potential future use or logging)
+  String _getChatTopicId(int userId1, int userId2) {
+    // Ensure consistent order (e.g., smaller ID first)
+    final ids = [userId1, userId2]..sort();
+    return '${ids[0]}_${ids[1]}';
+  }
 
   @override
   void dispose() {
+    // Remove widget binding observer
+    WidgetsBinding.instance.removeObserver(this);
+    
     _messageController.dispose();
-    _scrollController.removeListener(_scrollListener); // Remove listener
+    _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
+
+    // --- MQTT Cleanup ---
+    print("DEBUG (ChatPage - MQTT): Disposing ChatPage for topic chat/$_currentChatId/messages");
+    if (_mqttClient != null && _isSubscribed && _currentChatId != null) {
+      final topic = 'chat/$_currentChatId/messages';
+      _mqttClient!.unsubscribe(topic);
+      print("DEBUG (ChatPage - MQTT): Unsubscribed from $topic");
+    }
+    _mqttClient?.disconnect();
+    print("DEBUG (ChatPage - MQTT): Disconnected client.");
+    // --- End MQTT Cleanup ---
+
+    print("DEBUG (ChatPage): Disposed ChatPage complete.");
     super.dispose();
   }
 
@@ -253,6 +583,17 @@ class _ChatPageState extends State<ChatPage> {
           }
           // _messageOffset += fetchedMessages.length; // REMOVED: No longer needed
         });
+
+        // Add this at the end, after setting _messages and scrolling to bottom
+        // Mark visible messages as read after initial load
+        if (initialLoad && _messages.isNotEmpty) {
+          // Add a slight delay to ensure UI is built
+          Future.delayed(Duration(milliseconds: 500), () {
+            if (mounted) {
+              _markVisibleMessagesAsRead();
+            }
+          });
+        }
       } else {
         // Handle API error (e.g., show a SnackBar)
         print('Error (ChatPage): Failed to load messages: ${response.statusCode}'); // Log error
@@ -286,45 +627,309 @@ class _ChatPageState extends State<ChatPage> {
   }
 
 
-  void _sendMessage() {
-    // Ensure myUserId is loaded before sending
+  // Modified to send via POST to API and then publish via MQTT
+  Future<void> _sendMessage() async {
+    final messageText = _messageController.text.trim();
+    if (messageText.isEmpty) return;
+
     if (_myUserId == null) {
-      print("Error (ChatPage): Cannot send message: _myUserId is null."); // Log error
-      // ScaffoldMessenger.of(context).showSnackBar( // REMOVED SnackBar
-      //   SnackBar(content: Text('Mesaj gönderilemedi: Kullanıcı kimliği bulunamadı.')),
-      // );
+      print("Error (ChatPage - _sendMessage): Cannot send message. User ID null.");
+      if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text('Mesaj gönderilemedi. Kullanıcı bilgisi eksik.')),
+         );
+      }
       return;
     }
-    if (_messageController.text.trim().isEmpty) return;
 
-    // Create a temporary local message for immediate display
-    // Note: ID, actual time, and read status will come from backend/MQTT later
+    final tempId = DateTime.now().millisecondsSinceEpoch; // Temporary ID
+
+    // 1. Optimistic UI Update
     final tempMessage = Message(
-      id: DateTime.now().millisecondsSinceEpoch, // Temporary local ID
-      text: _messageController.text.trim(),
-      senderId: _myUserId!, // Use non-null assertion
+      id: 0, // Server ID will be assigned later
+      tempId: tempId,
+      text: messageText,
+      senderId: _myUserId!,
       receiverId: widget.userId,
-      time: timeago.format(DateTime.now(), locale: 'tr'), // Use timeago for temp message time
-      isRead: false, // Assume not read initially
+      time: timeago.format(DateTime.now(), locale: 'tr'), // This is already in local time
+      isRead: false,
+      isLocal: true,
     );
 
-    // Check mounted before calling setState
     if (!mounted) return;
-
     setState(() {
-      _messages.add(tempMessage); // Add to the end of the list
+      _messages.add(tempMessage);
       _messageController.clear();
     });
-    _scrollToBottom(); // Scroll after sending
+    // Improved: Use withDelay to ensure reliable scrolling after state update
+    _scrollToBottom(withDelay: true);
 
-    // TODO: Implement actual message sending logic here (e.g., via API or MQTT)
-    // Example: await sendMessageToApi(tempMessage);
+    // Check if this is a new chat (no chat ID exists)
+    if (_currentChatId == null) {
+      // Create the chat first if it doesn't exist
+      try {
+        print("DEBUG (ChatPage): Creating new chat between users $_myUserId and ${widget.userId}");
+        final createChatResponse = await http.post(
+          Uri.parse('$apiUrl/routers/chats.php'),
+          headers: {
+            'Authorization': 'Bearer $bearerToken',
+            'Content-Type': 'application/json',
+          },
+          body: json.encode({
+            'kullanici1_id': _myUserId!,
+            'kullanici2_id': widget.userId,
+          }),
+        );
+
+        if (createChatResponse.statusCode == 200 || createChatResponse.statusCode == 201) {
+          print("DEBUG (ChatPage): Successfully created chat: ${createChatResponse.body}");
+          try {
+            final chatData = json.decode(createChatResponse.body);
+            if (chatData != null && chatData['id'] != null) {
+              _currentChatId = chatData['id'];
+              print("DEBUG (ChatPage): New chat created with ID: $_currentChatId");
+              
+              // Try to establish MQTT subscription with the new chat ID
+              _subscribeToChatTopic();
+            } else {
+              print("ERROR (ChatPage): Failed to get chat ID from response: ${createChatResponse.body}");
+            }
+          } catch (e) {
+            print("ERROR (ChatPage): Failed to parse chat creation response: $e");
+          }
+        } else {
+          print("ERROR (ChatPage): Failed to create chat: ${createChatResponse.statusCode}, ${createChatResponse.body}");
+        }
+      } catch (e) {
+        print("ERROR (ChatPage): Exception creating chat: $e");
+      }
+    }
+
+    // 2. Send to API (messages.php) via POST
+    int? newMessageId; // To store the ID from the API response
+    int? newChatId; // To store the chat ID if it's a new chat
+
+    try {
+      final response = await http.post(
+        Uri.parse('$apiUrl/routers/messages.php'),
+        headers: {
+          'Authorization': 'Bearer $bearerToken',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'kimden_id': _myUserId!,
+          'kime_id': widget.userId,
+          'mesaj': messageText,
+          // Include sohbet_id if known, API might use it or create/find it
+          if (_currentChatId != null) 'sohbet_id': _currentChatId
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print("DEBUG (ChatPage): Message successfully saved to database.");
+        try {
+           final responseData = json.decode(response.body);
+           // Expecting API to return at least the new message ID and potentially the chat ID
+           newMessageId = responseData['id'];
+           newChatId = responseData['sohbet_id']; // Assuming API returns 'sohbet_id'
+
+           if (newMessageId != null && newMessageId is int) {
+              if (mounted) {
+                 setState(() {
+                    final tempIndex = _messages.indexWhere((m) => m.tempId == tempId);
+                    if (tempIndex != -1) {
+                       _messages[tempIndex] = Message(
+                          id: newMessageId!, // Use the real ID
+                          text: _messages[tempIndex].text,
+                          senderId: _messages[tempIndex].senderId,
+                          receiverId: _messages[tempIndex].receiverId,
+                          time: _messages[tempIndex].time,
+                          isRead: _messages[tempIndex].isRead,
+                          isLocal: false, // No longer local
+                       );
+                       print("DEBUG (ChatPage): Updated local message with server ID: $newMessageId");
+                    }
+                 });
+              }
+           }
+           
+           // If a new chat ID was returned and we didn't have one, update and subscribe
+           if (newChatId != null && (_currentChatId == null || _currentChatId != newChatId)) {
+              print("DEBUG (ChatPage): Received new chat ID: $newChatId from API.");
+              _currentChatId = newChatId;
+              // Attempt subscription now that we have the ID
+              _subscribeToChatTopic();
+           }
+
+           // Update chat metadata with the new message
+           final chatIdToUpdate = _currentChatId ?? newChatId;
+           if (chatIdToUpdate != null) {
+             // Create a current timestamp for the message
+             final messageTime = DateTime.now();
+             _updateChatMetadata(chatIdToUpdate, messageText, messageTime);
+           }
+
+        } catch (e) {
+           print("DEBUG (ChatPage): Could not parse message/chat ID from API response - $e");
+        }
+      } else {
+        print('Error (ChatPage): Failed to save message to database: ${response.statusCode}');
+        print('Error (ChatPage): Response body: ${response.body}');
+        // Handle error: Maybe mark the message as "failed to send" in the UI
+        if (mounted) {
+           setState(() {
+              final tempIndex = _messages.indexWhere((m) => m.tempId == tempId);
+              if (tempIndex != -1) {
+                 // Mark as failed visually? (e.g., add an error icon/state to Message)
+                 print("Error (ChatPage): Marking message $tempId as failed to send.");
+              }
+           });
+           ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(content: Text('Mesaj gönderilemedi (Sunucu Hatası).')),
+           );
+        }
+        return; // Don't attempt MQTT publish if API failed
+      }
+    } catch (e) {
+      print('Error (ChatPage): Error sending message to API: $e');
+      // Handle error: Maybe mark the message as "failed to send"
+      if (mounted) {
+         setState(() {
+            final tempIndex = _messages.indexWhere((m) => m.tempId == tempId);
+            if (tempIndex != -1) {
+               // Mark as failed visually?
+               print("Error (ChatPage): Marking message $tempId as failed to send (Network Error).");
+            }
+         });
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text('Mesaj gönderilemedi (Ağ Hatası).')),
+         );
+      }
+      return; // Don't attempt MQTT publish if API failed
+    }
+
+    // 3. Publish via MQTT if connected and chat ID is known
+    if (_mqttClient != null && _isMqttConnected && _currentChatId != null) {
+      final topic = 'chat/$_currentChatId/messages';
+      // Construct payload - use data from the message, including the ID from API if possible
+      final messagePayload = Message(
+         id: newMessageId ?? 0, // Use real ID if available
+         text: messageText,
+         senderId: _myUserId!,
+         receiverId: widget.userId,
+         // Use Turkey time (UTC+3) for consistency
+         time: DateTime.now().toUtc().add(Duration(hours: 3)).toIso8601String(),
+         isRead: false,
+      ).toJson(); // Use toJson helper
+
+      final builder = MqttClientPayloadBuilder();
+      
+      // Fix for emojis and Turkish characters - encode payload to UTF-8 properly
+      final jsonString = json.encode(messagePayload);
+      builder.addUTF8String(jsonString);
+
+      print("DEBUG (ChatPage - MQTT): Publishing message to $topic: $jsonString");
+      try {
+        _mqttClient!.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!);
+        
+        // Add confirmation callback for MQTT messages to fix the "clock icon" issue
+        // Store the tempId for matching in a confirmation handler
+        final sentTempId = tempId;
+        
+        // After successful publishing, check after a short delay if we can confirm the message
+        // This helps with the clock icon persistence issue
+        if (newMessageId != null) {
+          // If we already have the ID from API, mark as non-local immediately
+          _updateMessageLocalStatus(tempId, newMessageId);
+        } else {
+          // Set a timeout to remove local flag after a reasonable period if no confirmation
+          Future.delayed(Duration(seconds: 3), () {
+            if (mounted) {
+              _checkAndUpdatePendingMessage(sentTempId);
+            }
+          });
+        }
+      } catch (e) {
+         print("Error (ChatPage - MQTT): Failed to publish message - $e");
+      }
+    } else {
+       print("DEBUG (ChatPage - MQTT): Cannot publish message (Client: ${_mqttClient != null}, Connected: $_isMqttConnected, ChatID: $_currentChatId)");
+    }
   }
 
-  void _scrollToBottom({bool isInitial = false}) {
-     if (_scrollController.hasClients) {
+  // New method to update chat metadata after sending a message
+  Future<void> _updateChatMetadata(int chatId, String messageText, DateTime messageTime) async {
+    if (_myUserId == null) return;
+    
+    try {
+      
+      final response = await http.put(
+        Uri.parse('${ConfigLoader.apiUrl}/routers/chats.php'),
+        headers: {
+          'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'id': chatId,
+          'son_mesaji_atan_id': _myUserId,
+          'son_mesaj_metni': messageText,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        print("DEBUG (ChatPage): Chat metadata updated successfully for chat ID: $chatId"+response.body);
+      } else {
+        print("ERROR (ChatPage): Failed to update chat metadata: ${response.statusCode}, ${response.body}");
+      }
+    } catch (e) {
+      print("ERROR (ChatPage): Exception updating chat metadata: $e");
+    }
+  }
+
+  // New method to update message local status to fix the clock icon issue
+  void _updateMessageLocalStatus(int tempId, int? messageId) {
+    if (!mounted) return;
+    
+    setState(() {
+      final tempIndex = _messages.indexWhere((m) => m.tempId == tempId);
+      if (tempIndex != -1) {
+        // Create a new message with isLocal set to false
+        _messages[tempIndex] = Message(
+          id: messageId ?? _messages[tempIndex].id,
+          text: _messages[tempIndex].text,
+          senderId: _messages[tempIndex].senderId,
+          receiverId: _messages[tempIndex].receiverId,
+          time: _messages[tempIndex].time,
+          isRead: _messages[tempIndex].isRead,
+          isLocal: false, // Mark as no longer local
+          tempId: tempId, // Keep the tempId for future reference
+        );
+        print("DEBUG (ChatPage): Updated message local status, tempId: $tempId, messageId: $messageId");
+      }
+    });
+  }
+
+  // New method to check and update pending messages after timeout
+  void _checkAndUpdatePendingMessage(int tempId) {
+    final tempIndex = _messages.indexWhere((m) => m.tempId == tempId && m.isLocal);
+    if (tempIndex != -1) {
+      print("DEBUG (ChatPage): Auto-confirming pending message after timeout, tempId: $tempId");
+      _updateMessageLocalStatus(tempId, null);
+    }
+  }
+
+  // Improved scroll function with delay option for more reliable scrolling
+  void _scrollToBottom({bool isInitial = false, bool withDelay = false}) {
+     if (!_scrollController.hasClients) return;
+     
+     // If we need a delay (for keyboard or new messages), add a small delay
+     final scrollDelay = withDelay ? 100 : 0;
+     
+     Future.delayed(Duration(milliseconds: scrollDelay), () {
+       if (!_scrollController.hasClients) return;
+       
        final maxScroll = _scrollController.position.maxScrollExtent;
-       final duration = isInitial ? Duration(milliseconds: 1) : Duration(milliseconds: 300); // Instant scroll on initial load
+       final duration = isInitial ? Duration(milliseconds: 1) : Duration(milliseconds: 300); 
        final curve = Curves.easeOut;
 
        // Use addPostFrameCallback to ensure layout is complete before scrolling
@@ -337,69 +942,95 @@ class _ChatPageState extends State<ChatPage> {
             );
          }
        });
-     }
+     });
   }
 
-  // Function to mark a message as read via API
+  // Modified to send read receipt via POST to API and then publish via MQTT
   Future<void> _markMessageAsRead(int messageId) async {
     if (_myUserId == null) {
-      print("DEBUG (ChatPage): Cannot mark message $messageId as read, _myUserId is null.");
+       print("DEBUG (ChatPage - _markMessageAsRead): Cannot mark message $messageId as read, missing User ID.");
+       return;
+    }
+
+    // Skip local flag check for messageId = 0 (temporary messages)
+    if (messageId == 0) {
+      print("DEBUG (ChatPage - _markMessageAsRead): Skipping message with ID 0 (temporary)");
       return;
     }
-    // Avoid marking again if already marked in this session
+
+    // Avoid redundant processing/sending if already marked locally
     if (_locallyMarkedAsSeenIds.contains(messageId)) {
-      // print("DEBUG (ChatPage): Message $messageId already marked as seen locally.");
+      print("DEBUG (ChatPage - _markMessageAsRead): Message $messageId already marked locally.");
       return;
     }
 
-    print("DEBUG (ChatPage): Marking message $messageId as read for user $_myUserId (API Call)");
+    print("DEBUG (ChatPage): Marking message $messageId as read for user $_myUserId (API + MQTT)");
     _locallyMarkedAsSeenIds.add(messageId); // Mark locally immediately
+    
+    // Update local UI state immediately - don't wait for API
+    if (mounted) {
+      setState(() {
+        final messageIndex = _messages.indexWhere((m) => m.id == messageId && m.senderId == widget.userId);
+        if (messageIndex != -1) {
+          _messages[messageIndex].isRead = true;
+          print("DEBUG (ChatPage): Locally marked message $messageId as read in UI");
+        }
+      });
+    }
 
+    // 1. Send to API (messages.php) via POST
+    bool apiSuccess = false;
     try {
-      // Assuming your API expects a POST request to update the status
-      // Adjust the endpoint and body as per your API design
-      final url = Uri.parse('$apiUrl/routers/messages.php'); // Use your message update endpoint
+      final url = Uri.parse('$apiUrl/routers/messages.php');
       final response = await http.post(
         url,
         headers: {
           'Authorization': 'Bearer $bearerToken',
           'Content-Type': 'application/json',
         },
-        // Send the ID of the message that was read
-        // The backend should infer the reader is the recipient (_myUserId)
         body: json.encode({
           'okundu_id': messageId,
-          // You might need to send the reader's ID if the backend requires it
-          // 'reader_id': _myUserId,
+          // Backend infers reader from token
         }),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         print("DEBUG (ChatPage): Successfully marked message $messageId as read on backend.");
-        // Optional: Find the message in _messages and update its isRead status locally
-        // This provides immediate feedback but might be complex with immutable lists.
-        // Consider if relying on the next fetch is sufficient.
-        // if (mounted) {
-        //   setState(() {
-        //     final index = _messages.indexWhere((m) => m.id == messageId);
-        //     if (index != -1) {
-        //       // This requires Message to be mutable or recreating the list
-        //       // _messages[index] = _messages[index].copyWith(isRead: true); // Example if using copyWith
-        //     }
-        //   });
-        // }
+        apiSuccess = true;
       } else {
-        print('DEBUG (ChatPage): Failed to mark message $messageId as read: ${response.statusCode} ${response.body}');
-        // Optional: Remove from local set on failure to allow retry?
-        _locallyMarkedAsSeenIds.remove(messageId);
+        print('DEBUG (ChatPage): Failed to mark message $messageId as read via API: ${response.statusCode} ${response.body}');
+        _locallyMarkedAsSeenIds.remove(messageId); // Allow retry on API failure
       }
     } catch (e) {
-      print('DEBUG (ChatPage): Error marking message $messageId as read: $e');
-      // Optional: Remove from local set on failure to allow retry?
-      _locallyMarkedAsSeenIds.remove(messageId);
+      print('DEBUG (ChatPage): Error marking message $messageId as read via API: $e');
+      _locallyMarkedAsSeenIds.remove(messageId); // Allow retry on API failure
+    }
+
+    // 2. Publish Read Receipt via MQTT if API succeeded, connected, and chat ID known
+    if (apiSuccess && _mqttClient != null && _isMqttConnected && _currentChatId != null) {
+       final topic = 'chat/$_currentChatId/messages';
+       final receiptPayload = {
+         'type': 'read', // Indicate message type
+         'messageId': messageId,
+         'readerId': _myUserId!, // ID of the user who read the message
+         // Use Turkey time (UTC+3) for timestamp
+         'timestamp': DateTime.now().toUtc().add(Duration(hours: 3)).toIso8601String(),
+       };
+
+       final builder = MqttClientPayloadBuilder();
+       final jsonString = json.encode(receiptPayload);
+       builder.addUTF8String(jsonString);
+
+       print("DEBUG (ChatPage - MQTT): Publishing read receipt to $topic for message $messageId: $jsonString");
+       try {
+         _mqttClient!.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!);
+       } catch (e) {
+          print("Error (ChatPage - MQTT): Failed to publish read receipt - $e");
+       }
+    } else if (apiSuccess) {
+        print("DEBUG (ChatPage - MQTT): Cannot publish read receipt (API Success: $apiSuccess, Client: ${_mqttClient != null}, Connected: $_isMqttConnected, ChatID: $_currentChatId)");
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -452,6 +1083,11 @@ class _ChatPageState extends State<ChatPage> {
                     '@${widget.username}',
                     style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                   ),
+                  // Add MQTT connection status indicator (optional)
+                  // Text(
+                  //   _isMqttConnected ? (_isSubscribed ? 'Bağlı (Sohbet)' : 'Bağlı') : 'Bağlantı Yok',
+                  //   style: TextStyle(fontSize: 10, color: _isMqttConnected ? Colors.green : Colors.red),
+                  // ),
                 ],
               ),
             ],
@@ -474,109 +1110,117 @@ class _ChatPageState extends State<ChatPage> {
                 ? Center(child: CircularProgressIndicator()) // Loading indicator for initial load
                 : _messages.isEmpty && !_isLoadingMessages
                     ? Center(child: Text('Henüz mesaj yok.')) // No messages text
-                    : ListView.builder(
-                        controller: _scrollController,
-                        padding: EdgeInsets.all(10.0),
-                        itemCount: _messages.length,
-                        // reverse: true, // Keep false for top-loading pagination
-                        itemBuilder: (context, index) {
-                          final message = _messages[index];
-                          // Determine if the message was sent by the current user
-                          // Use non-null assertion for _myUserId as it's checked at the build method start
-                          final bool isSentByMe = message.senderId == _myUserId!;
-                          return _buildMessageBubble(message, isSentByMe);
+                    : NotificationListener<ScrollNotification>(
+                        onNotification: (ScrollNotification scrollInfo) {
+                          // Check if user has stopped scrolling
+                          if (scrollInfo is ScrollEndNotification) {
+                            // Add a small delay to mark visible messages as read
+                            Future.delayed(Duration(milliseconds: 300), () {
+                              if (mounted) {
+                                _markVisibleMessagesAsRead();
+                              }
+                            });
+                          }
+                          return false;
                         },
+                        child: ListView.builder(
+                          controller: _scrollController,
+                          padding: EdgeInsets.all(10.0),
+                          itemCount: _messages.length,
+                          itemBuilder: (context, index) {
+                            final message = _messages[index];
+                            return _buildMessageBubble(message);
+                          },
+                        ),
                       ),
           ),
-          _buildMessageInputBar(),
+          // Listen for keyboard resize using LayoutBuilder
+          LayoutBuilder(
+            builder: (context, constraints) {
+              // When layout changes and keyboard is visible, trigger scroll
+              if (_isKeyboardVisible) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _scrollToBottom();
+                });
+              }
+              return _buildMessageInputBar();
+            }
+          ),
         ],
       ),
+      // Add resize behavior to handle keyboard better
+      resizeToAvoidBottomInset: true,
     );
   }
 
-  // Update _buildMessageBubble to accept isSentByMe parameter
-  Widget _buildMessageBubble(Message message, bool isSentByMe) {
-    final align = isSentByMe ? CrossAxisAlignment.end : CrossAxisAlignment.start;
-    final color = isSentByMe ? Theme.of(context).primaryColor : Colors.grey[300];
-    final textColor = isSentByMe ? Colors.white : Colors.black87;
-    final radius = isSentByMe
-        ? BorderRadius.only(
+  // Update _buildMessageBubble - No VisibilityDetector needed
+  Widget _buildMessageBubble(Message message) {
+     final bool isSentByMe = message.senderId == _myUserId!;
+     final align = isSentByMe ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+     final color = isSentByMe ? Theme.of(context).primaryColor : Colors.grey[300];
+     final textColor = isSentByMe ? Colors.white : Colors.black87;
+     final radius = isSentByMe
+         ? BorderRadius.only(
             topLeft: Radius.circular(15),
             bottomLeft: Radius.circular(15),
             bottomRight: Radius.circular(15),
           )
-        : BorderRadius.only(
+         : BorderRadius.only(
             topRight: Radius.circular(15),
             bottomLeft: Radius.circular(15),
             bottomRight: Radius.circular(15),
           );
 
-    // Wrap the content with VisibilityDetector
-    return VisibilityDetector(
-      key: Key('msg_vis_${message.id}'), // Unique key for each message
-      onVisibilityChanged: (visibilityInfo) {
-        var visiblePercentage = visibilityInfo.visibleFraction * 100;
-        // Check if mostly visible, received by me, and not already read/marked locally
-        if (!isSentByMe &&
-            !message.isRead &&
-            visiblePercentage > 75 && // Adjust threshold as needed
-            !_locallyMarkedAsSeenIds.contains(message.id))
-        {
-          _markMessageAsRead(message.id);
-        }
-      },
-      child: Container(
-        margin: EdgeInsets.symmetric(vertical: 4),
-        child: Column(
-          crossAxisAlignment: align,
-          children: [
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75), // Max width
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: radius,
-              ),
-              child: Text(
-                message.text,
-                style: TextStyle(color: textColor),
-              ),
-            ),
-            SizedBox(height: 2),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 5),
-              child: Row( // Use Row to place time and seen status side-by-side
-                mainAxisSize: MainAxisSize.min, // Row takes minimum space needed
-                mainAxisAlignment: isSentByMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-                children: [
-                  Text(
-                    message.time, // Use time from message object
-                    style: TextStyle(color: Colors.grey, fontSize: 10),
-                  ),
-                  // Show "Görüldü" only if sent by me and read by receiver
-                  if (isSentByMe && message.isRead)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 4.0), // Add space before "Görüldü"
-                      child: Text(
-                        'Görüldü',
-                        style: TextStyle(
-                          color: Colors.blueGrey, // Or another subtle color
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+    // Return the Container directly
+    return Container(
+      margin: EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: isSentByMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+            decoration: BoxDecoration(color: color, borderRadius: radius),
+            child: Text(message.text, style: TextStyle(color: textColor)),
+          ),
+          SizedBox(height: 2),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 5),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: isSentByMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+              children: [
+                Text(
+                  message.time,
+                  style: TextStyle(color: Colors.grey, fontSize: 10),
+                ),
+                // Show "Görüldü" based on message.isRead flag (updated by MQTT receipt)
+                if (isSentByMe && message.isRead)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4.0),
+                    child: Text(
+                      'Görüldü',
+                      style: TextStyle(color: Colors.blueGrey, fontSize: 10, fontWeight: FontWeight.bold),
                     ),
-                ],
-              ),
+                  ),
+                 // Indicate sending status for local messages
+                 if (isSentByMe && message.isLocal)
+                   Padding(
+                     padding: const EdgeInsets.only(left: 4.0),
+                     child: Icon(Icons.schedule, size: 10, color: Colors.grey),
+                   ),
+                 // Optional: Add error icon if API call failed (requires adding state to Message)
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildMessageInputBar() {
     return Container(
+      // ... existing decoration ...
       padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
       decoration: BoxDecoration(
         boxShadow: [
@@ -592,6 +1236,7 @@ class _ChatPageState extends State<ChatPage> {
         children: [
           Expanded(
             child: Container(
+              // ... existing decoration ...
               padding: EdgeInsets.symmetric(horizontal: 12.0),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20.0),
@@ -601,16 +1246,19 @@ class _ChatPageState extends State<ChatPage> {
                 decoration: InputDecoration(
                   hintText: 'Mesaj yaz...',
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 10,horizontal: 10) // Center hint text vertically
+                  contentPadding: EdgeInsets.symmetric(vertical: 10, horizontal: 10)
                 ),
                 textCapitalization: TextCapitalization.sentences,
-                maxLines: null, // Allows multiline input
+                maxLines: null,
+                // Send message on enter key press
+                onSubmitted: (_) => _sendMessage(),
               ),
             ),
           ),
           SizedBox(width: 8.0),
           IconButton(
             icon: Icon(Icons.send, color: Theme.of(context).primaryColor),
+            // Use async version of _sendMessage here
             onPressed: _sendMessage,
           ),
         ],

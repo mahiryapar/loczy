@@ -20,6 +20,9 @@ class StoryItem {
     required this.mediaType,
     required this.creationTime, // Add to constructor
   });
+  
+  // Add getter for Turkish time
+  DateTime get turkeyTime => creationTime.add(const Duration(hours: 3));
 }
 
 // Updated Story class
@@ -130,10 +133,13 @@ class _StoryViewPageState extends State<StoryViewPage> with TickerProviderStateM
     }
 
     final story = _currentStory;
+    // Use UTC+3 for 24-hour calculation
     final DateTime twentyFourHoursAgo = DateTime.now().subtract(const Duration(hours: 24));
 
-    // Filter items
-    _currentVisibleItems = story.items.where((item) => item.creationTime.isAfter(twentyFourHoursAgo)).toList();
+    // Filter items - use turkeyTime getter to compare with Turkey time
+    _currentVisibleItems = story.items
+        .where((item) => item.turkeyTime.isAfter(twentyFourHoursAgo))
+        .toList();
     print("DEBUG: Story ${_currentStoryIndex} (${story.username}): Total items: ${story.items.length}, Visible items (last 24h): ${_currentVisibleItems.length}");
 
     if (_currentVisibleItems.isEmpty) {
@@ -554,8 +560,8 @@ class _StoryViewPageState extends State<StoryViewPage> with TickerProviderStateM
                               ),
                               const SizedBox(width: 8), // Space between username and time
                               Text(
-                                // Uses currentItem getter which accesses the visible item
-                                timeago.format(currentItem.creationTime, locale: 'tr'), // Format time
+                                // Use turkeyTime getter for formatting
+                                timeago.format(currentItem.turkeyTime, locale: 'tr'), // Format time in UTC+3
                                 style: const TextStyle(color: Colors.white70, fontSize: 12), // Style for time
                               ),
                             ],

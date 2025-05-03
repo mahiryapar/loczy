@@ -218,6 +218,8 @@ class _UploadPageState extends State<UploadPage> {
           'konum': 'Konum Bilgisi Eklenecek', // Included for post
           'media_type': mediaType,
           'portre_mi': _portreMiValue, // Included for post
+          // Add Turkey time offset to ensure server stores with correct timezone context
+          'timezone_offset': 180, // 180 minutes = +3 hours (UTC+3)
         }),
       );
 
@@ -292,6 +294,8 @@ class _UploadPageState extends State<UploadPage> {
         body: jsonEncode({
           'atan_id': _userId,
           'post_url': mediaUrl, // Send the media URL as post_url
+          // Add Turkey time offset to ensure server stores with correct timezone context
+          'timezone_offset': 180, // 180 minutes = +3 hours (UTC+3)
         }),
       );
 
