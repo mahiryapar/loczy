@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:loczy/main.dart';
+import 'package:loczy/pages/kaydedilenler.dart'; // Add this import
 
 class AyarlarPage extends StatefulWidget {
   final Function logout;
@@ -22,31 +23,13 @@ class _AyarlarPageState extends State<AyarlarPage> {
       body: ListView(
         children: [
           ListTile(
-            leading: Icon(Icons.language),
-            title: Text('Dil Seçenekleri'),
+            leading: Icon(Icons.bookmark),
+            title: Text('Kaydedilenler'),
             onTap: () {
-              // Dil seçenekleri sayfasına yönlendirme
-            },
-          ),
-          ListTile(
-            leading: Icon(Icons.notifications),
-            title: Text('Bildirim Ayarları'),
-            onTap: () {
-              // Bildirim ayarları sayfasına yönlendirme
-            },
-          ),
-          ListTile(
-            leading: Icon(Icons.lock),
-            title: Text('Gizlilik Ayarları'),
-            onTap: () {
-              // Gizlilik ayarları sayfasına yönlendirme
-            },
-          ),
-          ListTile(
-            leading: Icon(Icons.color_lens),
-            title: Text('Tema Seçenekleri'),
-            onTap: () {
-              // Tema seçenekleri sayfasına yönlendirme
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => KaydedilenlerPage()),
+              );
             },
           ),
             ListTile(
