@@ -89,6 +89,7 @@ class _AnaSayfaState extends State<AnaSayfa> {
     super.initState();
     _loadUsername();
     _initializeMqtt(); // Initialize MQTT here
+    _fetchStoredNotifications(); // Add this line to fetch stored notifications
     _pages = [
       HomePage(),
       MessagesPage(),
@@ -96,6 +97,84 @@ class _AnaSayfaState extends State<AnaSayfa> {
       UploadPage(),
       ProfilePage(logout: _logout),
     ];
+  }
+
+  // Add this new method to fetch stored notifications
+  Future<void> _fetchStoredNotifications() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final int? userId = prefs.getInt('userId');
+    
+    if (userId == null) {
+      print('Cannot fetch notifications: userId not found');
+      return;
+    }
+    
+    try {
+      final response = await http.get(
+        Uri.parse('${ConfigLoader.apiUrl}/routers/notifications.php?user_id=$userId'),
+        headers: {
+          'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+          'Content-Type': 'application/json',
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        final List<dynamic> notifications = json.decode(response.body);
+        final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+        
+        print('Fetched ${notifications.length} notifications from database');
+        
+        // Add unread notifications to the provider
+        for (var notification in notifications) {
+          // Skip if already read (read = 1 or true)
+          if (notification['read'] == 1 || notification['read'] == true) {
+            continue;
+          }
+          
+          // Extract notification data
+          final String title = notification['title'] ?? 'Bildirim';
+          final String body = notification['content'] ?? '';
+          final String type = notification['type'] ?? 'default';
+          final int notificationId = notification['id'];
+          
+          // Create payload based on notification type
+          Map<String, dynamic> payloadData = {
+            'type': type,
+            'notification_id': notificationId,
+          };
+          
+          // Add type-specific data to the payload if available
+          if (notification['payload'] != null) {
+            try {
+              final Map<String, dynamic> additionalPayload = 
+                notification['payload'] is String 
+                  ? json.decode(notification['payload']) 
+                  : notification['payload'];
+              payloadData.addAll(additionalPayload);
+            } catch (e) {
+              print('Error parsing payload JSON: $e');
+            }
+          }
+          
+          // Add the notification to the provider with database ID
+          notificationProvider.addNotification(
+            title, 
+            body, 
+            type: type, 
+            payload: payloadData,
+            notificationId: notificationId,
+          );
+        }
+      } else {
+        print('Failed to fetch notifications: ${response.statusCode} ${response.body}');
+        try {
+          final errorBody = json.decode(response.body);
+          print('Error details: $errorBody');
+        } catch (_) {}
+      }
+    } catch (e) {
+      print('Error fetching notifications: $e');
+    }
   }
 
   // Initialize and connect MQTT service
@@ -187,6 +266,11 @@ class _AnaSayfaState extends State<AnaSayfa> {
   void _handleNotificationTap(NotificationModel notification) {
     final String type = notification.type;
     final Map<String, dynamic>? payload = notification.payload;
+    
+    // Mark notification as read in database if we have an ID
+    if (notification.notificationId != null) {
+      _markNotificationAsRead(notification.notificationId!);
+    }
     
     if (payload == null) {
       _toggleNotifications(); // Just close panel if no payload
@@ -711,6 +795,26 @@ class _AnaSayfaState extends State<AnaSayfa> {
       body: _buildContent(),
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
+  }
+  
+  // Add this method to mark a notification as read
+  Future<void> _markNotificationAsRead(int notificationId) async {
+    try {
+      final response = await http.put(
+        Uri.parse('${ConfigLoader.apiUrl}/routers/notifications.php'),
+        headers: {
+          'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({'notification_id': notificationId}),
+      );
+      
+      if (response.statusCode != 200) {
+        print('Failed to mark notification $notificationId as read: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error marking notification as read: $e');
+    }
   }
 }
 

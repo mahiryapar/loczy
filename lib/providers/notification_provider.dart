@@ -1,18 +1,25 @@
 import 'package:flutter/foundation.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:loczy/config_getter.dart';
 
 class NotificationModel {
   final String title;
   final String body;
-  final DateTime timestamp;
   final String type;
+  final DateTime time;
   final Map<String, dynamic>? payload;
+  final int? notificationId; // Added field for database ID
+  bool isRead;
 
   NotificationModel({
-    required this.title, 
-    required this.body, 
-    required this.timestamp, 
-    this.type = '',
+    required this.title,
+    required this.body,
+    this.type = 'default',
+    required this.time,
     this.payload,
+    this.notificationId, // Added parameter
+    this.isRead = false,
   });
 }
 
@@ -23,32 +30,57 @@ class NotificationProvider with ChangeNotifier {
   List<NotificationModel> get notifications => _notifications;
   int get unreadCount => _unreadCount;
 
-  void addNotification(String title, String body, {String type = '', Map<String, dynamic>? payload}) {
-    // Add to the beginning of the list
-    _notifications.insert(0, NotificationModel(
-      title: title, 
-      body: body, 
-      timestamp: DateTime.now(),
+  void addNotification(
+    String title, 
+    String body, 
+    {String type = 'default', 
+    Map<String, dynamic>? payload,
+    int? notificationId} // Added parameter
+  ) {
+    final notification = NotificationModel(
+      title: title,
+      body: body,
       type: type,
+      time: DateTime.now(),
       payload: payload,
-    ));
+      notificationId: notificationId, // Pass database ID
+      isRead: false,
+    );
+
+    _notifications.insert(0, notification);
     _unreadCount++;
-    // Optional: Limit the number of stored notifications
-    if (_notifications.length > 50) {
-      _notifications.removeLast();
+
+    notifyListeners();
+  }
+
+  void removeNotification(NotificationModel notification) {
+    _notifications.remove(notification);
+    
+    if (!notification.isRead) {
+      _unreadCount--;
     }
+    
+    // If we have a database ID, mark it as read in the database
+    if (notification.notificationId != null) {
+      _markNotificationAsReadInDatabase(notification.notificationId!);
+    }
+    
     notifyListeners();
   }
 
   void markAsRead() {
-    _unreadCount = 0;
-    notifyListeners();
-  }
-
-  void removeNotification(NotificationModel notificationToRemove) {
-    final index = _notifications.indexWhere((notification) => notification == notificationToRemove);
-    if (index != -1) {
-      _notifications.removeAt(index);
+    if (_unreadCount > 0) {
+      for (var notification in _notifications) {
+        if (!notification.isRead) {
+          notification.isRead = true;
+          
+          // Mark each unread notification as read in the database
+          if (notification.notificationId != null) {
+            _markNotificationAsReadInDatabase(notification.notificationId!);
+          }
+        }
+      }
+      _unreadCount = 0;
       notifyListeners();
     }
   }
@@ -57,5 +89,25 @@ class NotificationProvider with ChangeNotifier {
     _notifications.clear();
     _unreadCount = 0;
     notifyListeners();
+  }
+  
+  // New method to mark notification as read in database
+  Future<void> _markNotificationAsReadInDatabase(int notificationId) async {
+    try {
+      final response = await http.put(
+        Uri.parse('${ConfigLoader.apiUrl}/routers/notifications.php'),
+        headers: {
+          'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({'notification_id': notificationId}),
+      );
+      
+      if (response.statusCode != 200) {
+        print('Failed to mark notification $notificationId as read in database: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error marking notification as read in database: $e');
+    }
   }
 }

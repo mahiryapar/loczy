@@ -8,6 +8,7 @@ import 'package:loczy/services/notification_service.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http; // Add HTTP for API requests
 
 // REMOVED ChatMessageEvent class
 
@@ -253,12 +254,23 @@ class MqttService {
     final String title = data['title'] ?? 'Bildirim';
     final String body = data['body'] ?? '';
     
+    // Extract notification_id if available
+    final int? notificationId = data['bildirim_id'];
+    
     // Create a common payload with basic notification info
     Map<String, dynamic> payloadData = {
       'type': type,
       'title': title,
       'body': body,
     };
+    
+    // Add notification_id to payload if available
+    if (notificationId != null) {
+      payloadData['bildirim_id'] = notificationId;
+      
+      // If app is active, mark notification as read in the database
+      markNotificationAsRead(notificationId);
+    }
     
     // Add type-specific data to the payload
     switch (type) {
@@ -297,33 +309,66 @@ class MqttService {
         break;
     }
     
-    // Generate a notification ID based on timestamp and type
-    int notificationId;
+    // Generate a local notification ID for display based on timestamp and type
+    int displayNotificationId;
     if (type == 'chat_message') {
       // For chat messages, use sender ID as before
-      notificationId = (data['senderId'] ?? 0).hashCode;
+      displayNotificationId = (data['senderId'] ?? 0).hashCode;
     } else if (type == 'follow_request') {
       // For follow requests, use user ID to ensure unique notification
-      notificationId = (data['user_id'] ?? 0).hashCode;
+      displayNotificationId = (data['user_id'] ?? 0).hashCode;
     } else if (type == 'comment' || type == 'post_like') {
       // For post-related notifications, use post ID + type 
-      notificationId = ((data['post_id'] ?? 0).toString() + type).hashCode;
+      displayNotificationId = ((data['post_id'] ?? 0).toString() + type).hashCode;
     } else {
       // For other types, use timestamp to ensure uniqueness
-      notificationId = DateTime.now().millisecondsSinceEpoch.remainder(100000);
+      displayNotificationId = DateTime.now().millisecondsSinceEpoch.remainder(100000);
     }
     
-    // Show notification
+    // Show notification using the generated display ID
     final payload = json.encode(payloadData);
     _notificationService.showNotification(
-      notificationId,
+      displayNotificationId, // Use the generated ID for display
       title,
       body,
       payload: payload,
     );
     
-    // Add to notification provider for AppBar display
-    _notificationProvider.addNotification(title, body, type: type, payload: payloadData);
+    // Add to notification provider for AppBar display, using the generated display ID
+    _notificationProvider.addNotification(title, body, 
+      type: type, 
+      payload: payloadData, 
+      notificationId: displayNotificationId // Use the generated ID here too
+    );
+  }
+
+  // New method to mark notification as read in the database
+  Future<void> markNotificationAsRead(int notificationId) async {
+    try {
+      final uri = Uri.parse('${ConfigLoader.apiUrl}/routers/notifications.php')
+          .replace(queryParameters: {'notification_id': notificationId.toString()});
+
+      final response = await http.put(
+        uri,
+        headers: {
+          'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+          'Content-Type': 'application/json', // No longer sending JSON body
+        },
+        // body: json.encode({'notification_id': notificationId}), // Removed body
+      );
+      
+      if (response.statusCode == 200) {
+        print('Notification ID $notificationId marked as read in database');
+      } else {
+        print('Failed to mark notification as read in database: ${response.statusCode}');
+        try {
+          final errorBody = json.decode(response.body);
+          print('Error details: $errorBody');
+        } catch (_) {}
+      }
+    } catch (e) {
+      print('Error marking notification as read: $e');
+    }
   }
 
   void _handleMessage(String topic, String payload) {

@@ -5,6 +5,8 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:loczy/config_getter.dart';
 import 'package:loczy/pages/chat_page.dart';
+import 'package:mqtt_client/mqtt_client.dart'; // Import MQTT Client
+import 'package:mqtt_client/mqtt_server_client.dart'; // Import MQTT Server Client
 
 class PostPaylasPanel extends StatefulWidget {
   final int postId;
@@ -32,12 +34,61 @@ class _PostPaylasPanelState extends State<PostPaylasPanel> {
   int? _currentUserId;
   final TextEditingController _searchController = TextEditingController();
   List<ChatPreview> _filteredChats = [];
+  
+  // MQTT Client variables
+  MqttServerClient? _mqttClient;
+  bool _isMqttConnected = false;
+  String? _currentUserName;
 
   @override
   void initState() {
     super.initState();
     _loadCurrentUser();
     _searchController.addListener(_filterChats);
+    _initializeMqttClient(); // Initialize MQTT client
+  }
+
+  // Initialize MQTT Client
+  Future<void> _initializeMqttClient() async {
+    final String brokerIp = ConfigLoader.vm_ip; // Get broker IP from config
+    final String clientId = 'flutter_share_${DateTime.now().millisecondsSinceEpoch}'; // Unique client ID
+
+    _mqttClient = MqttServerClient(brokerIp, clientId);
+    _mqttClient!.port = 1883; // Default MQTT port
+    _mqttClient!.logging(on: false); // Disable logging for production
+    _mqttClient!.keepAlivePeriod = 60;
+    _mqttClient!.onDisconnected = _onMqttDisconnected;
+    _mqttClient!.onConnected = _onMqttConnected;
+
+    final connMessage = MqttConnectMessage()
+        .withClientIdentifier(clientId)
+        .startClean() // Clean session for simplicity
+        .withWillQos(MqttQos.atLeastOnce);
+    _mqttClient!.connectionMessage = connMessage;
+
+    try {
+      print('DEBUG (PostPaylasPanel - MQTT): Connecting to broker $brokerIp...');
+      await _mqttClient!.connect();
+    } catch (e) {
+      print('DEBUG (PostPaylasPanel - MQTT): Client exception - $e');
+      _mqttClient?.disconnect();
+      _mqttClient = null;
+      _isMqttConnected = false;
+    }
+  }
+
+  void _onMqttConnected() {
+    print('DEBUG (PostPaylasPanel - MQTT): Connected');
+    setState(() {
+      _isMqttConnected = true;
+    });
+  }
+
+  void _onMqttDisconnected() {
+    print('DEBUG (PostPaylasPanel - MQTT): Disconnected');
+    setState(() {
+      _isMqttConnected = false;
+    });
   }
 
   void _filterChats() {
@@ -54,6 +105,7 @@ class _PostPaylasPanelState extends State<PostPaylasPanel> {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
       _currentUserId = prefs.getInt('userId');
+      _currentUserName = prefs.getString('userNickname') ?? 'Bilinmeyen Kullanıcı';
     });
     if (_currentUserId != null) {
       _fetchChats();
@@ -134,6 +186,69 @@ class _PostPaylasPanelState extends State<PostPaylasPanel> {
     }
   }
 
+  // Publish a message via MQTT
+  void _publishViaMqtt(int chatId, Message message) {
+    if (_mqttClient == null || !_isMqttConnected) {
+      print('DEBUG (PostPaylasPanel - MQTT): Cannot publish, client not connected');
+      return;
+    }
+
+    final topic = 'chat/$chatId/messages';
+    final builder = MqttClientPayloadBuilder();
+    
+    // Fix for emojis and Turkish characters - encode payload to UTF-8 properly
+    final jsonString = json.encode(message.toJson());
+    builder.addUTF8String(jsonString);
+
+    print("DEBUG (PostPaylasPanel - MQTT): Publishing post share to $topic");
+    try {
+      _mqttClient!.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!);
+      print("DEBUG (PostPaylasPanel - MQTT): Post share published successfully");
+    } catch (e) {
+      print("ERROR (PostPaylasPanel - MQTT): Failed to publish post - $e");
+    }
+  }
+
+  // Send notification when post is shared
+  void _sendPostShareNotification(int recipientId, int chatId) {
+    if (_mqttClient == null || !_isMqttConnected || _currentUserId == null || _currentUserName == null) {
+      print("DEBUG (PostPaylasPanel - MQTT): Cannot send notification - MQTT not connected");
+      return;
+    }
+
+    // Create notification data for post share
+    final notificationData = {
+      'type': 'chat_message',
+      'title': _currentUserName,
+      'body': 'Size bir post gönderdi', // "X has sent you a post"
+      'senderId': _currentUserId,
+      'chatId': chatId,
+      'isPostShare': true,
+      'postId': widget.postId,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    };
+
+    // Topic for the recipient's notifications
+    final notificationTopic = 'user/$recipientId/notifications';
+    
+    // Build and publish the notification
+    final builder = MqttClientPayloadBuilder();
+    final jsonString = json.encode(notificationData);
+    builder.addUTF8String(jsonString);
+
+    print("DEBUG (PostPaylasPanel - MQTT): Publishing post share notification to $notificationTopic");
+    try {
+      _mqttClient!.publishMessage(
+        notificationTopic,
+        MqttQos.atLeastOnce,
+        builder.payload!
+      );
+      print("DEBUG (PostPaylasPanel - MQTT): Post share notification sent successfully");
+    } catch (e) {
+      print("ERROR (PostPaylasPanel - MQTT): Failed to publish notification - $e");
+    }
+  }
+
   Future<void> _sharePostWithUser(int userId, int chatId) async {
     if (_currentUserId == null) return;
     
@@ -170,21 +285,36 @@ class _PostPaylasPanelState extends State<PostPaylasPanel> {
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // Get the message ID from response
+        final responseData = json.decode(response.body);
+        final int? messageId = responseData['id'];
+        
+        // Create Message object for MQTT publishing
+        final message = Message(
+          id: messageId ?? 0,
+          text: messagePayload, // Use the same formatted post share message
+          senderId: _currentUserId!,
+          receiverId: userId,
+          time: DateTime.now().toUtc().add(Duration(hours: 3)).toIso8601String(),
+          isRead: false,
+          isSharedPost: true,
+          postId: widget.postId,
+          postImageUrl: widget.postImageUrl,
+          thumbnailUrl: displayImageUrl,
+          isVideo: widget.isVideo,
+          postCaption: widget.postText,
+        );
+        
+        // Publish the message via MQTT for real-time update
+        _publishViaMqtt(chatId, message);
+        
+        // Send notification to recipient
+        _sendPostShareNotification(userId, chatId);
+        
         // Successfully shared
         Navigator.pop(context, true); // Close panel with success result
         
-        // Update post share count
-        await http.post(
-          Uri.parse('${ConfigLoader.apiUrl}/routers/post_shares.php'),
-          headers: {
-            'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
-            'Content-Type': 'application/json',
-          },
-          body: json.encode({
-            'post_id': widget.postId,
-            'paylasan_id': _currentUserId,
-          }),
-        );
+        // Removed post share count update API call
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Post paylaşılamadı: ${response.statusCode}')),
@@ -208,6 +338,8 @@ class _PostPaylasPanelState extends State<PostPaylasPanel> {
   void dispose() {
     _searchController.removeListener(_filterChats);
     _searchController.dispose();
+    // Clean up MQTT client
+    _mqttClient?.disconnect();
     super.dispose();
   }
 

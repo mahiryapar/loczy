@@ -24,13 +24,12 @@ class Post {
   final String aciklama;
   final String konum;
   final DateTime paylasilmaTarihi;
-  final int begeniSayisi;
+  int begeniSayisi;  // Changed to non-final to allow updates
   final int yorumSayisi;
-  final int paylasilmaSayisi;
   final int portreMi; // 0: landscape/photo, 1: portrait video
-  // Add fields for like/save status if your API provides them in the list
-  // final bool isLikedByCurrentUser;
-  // final bool isSavedByCurrentUser;
+  // Add fields for like/save status
+  bool isLikedByCurrentUser; // Added to track like status
+  bool isSavedByCurrentUser; // Added for future implementation
 
   Post({
     required this.id,
@@ -44,10 +43,9 @@ class Post {
     required this.paylasilmaTarihi,
     required this.begeniSayisi,
     required this.yorumSayisi,
-    required this.paylasilmaSayisi,
     required this.portreMi,
-    // required this.isLikedByCurrentUser,
-    // required this.isSavedByCurrentUser,
+    this.isLikedByCurrentUser = false, // Default value
+    this.isSavedByCurrentUser = false, // Default value
   });
 
   // Updated factory to accept userJson
@@ -67,10 +65,9 @@ class Post {
           : DateTime.now(),
       begeniSayisi: json['begeni_sayisi'] ?? 0,
       yorumSayisi: json['yorum_sayisi'] ?? 0,
-      paylasilmaSayisi: json['paylasilma_sayisi'] ?? 0,
       portreMi: json['portre_mi'] ?? 0,
-      // isLikedByCurrentUser: json['is_liked'] ?? false, // Example
-      // isSavedByCurrentUser: json['is_saved'] ?? false, // Example
+      isLikedByCurrentUser: json['is_liked'] == true, // Parse from API if available
+      isSavedByCurrentUser: json['is_saved'] == true, // Parse from API if available
     );
   }
 }
@@ -214,6 +211,9 @@ class _HomePageState extends State<HomePage> {
 
       // Ensure story fetch is also complete
       await futures[0]; // Wait for _fetchStories
+
+      // Check post like status after loading
+      await _checkPostLikeStatus();
 
     } catch (e) {
       print('DEBUG: Error during initial data fetch: $e');
@@ -447,7 +447,7 @@ class _HomePageState extends State<HomePage> {
     setState(() { _isLoading = true; }); // Indicate loading more
 
     // Simulate slight delay for smoother UX if needed
-    Future.delayed(Duration(milliseconds: 100), () {
+    Future.delayed(Duration(milliseconds: 100), () async {
         if (!mounted) return; // Check if widget is still mounted
 
         int nextIndex = _displayIndex + _limit;
@@ -465,6 +465,9 @@ class _HomePageState extends State<HomePage> {
             _isLoading = false; // Done loading more
             print("DEBUG: Loaded ${nextPosts.length} more posts. Displaying: ${_posts.length}. HasMore: $_hasMore");
         });
+        
+        // Check like status for newly loaded posts
+        await _checkPostLikeStatus();
     });
   }
 
@@ -642,12 +645,104 @@ class _HomePageState extends State<HomePage> {
         postText: post.aciklama,
         isVideo: isVideo,
       ),
-    ).then((shared) {
-      if (shared == true) {
-        // Refresh posts to get updated share count
-        _refreshPage();
+    );
+  }
+
+  // Add a method to check if current user has liked posts
+  Future<void> _checkPostLikeStatus() async {
+    if (_currentUserId == null || _posts.isEmpty) return;
+    
+    try {
+      for (int i = 0; i < _posts.length; i++) {
+        Post post = _posts[i];
+        final likeResponse = await http.get(
+          Uri.parse('${ConfigLoader.apiUrl}/routers/post_likes.php?post_id=${post.id}&user_id=$_currentUserId'),
+          headers: {
+            'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+            'Content-Type': 'application/json',
+          },
+        );
+        
+        if (likeResponse.statusCode == 200) {
+          final likeData = jsonDecode(likeResponse.body);
+          final likeStatus = likeData['status'];
+          
+          if (mounted) {
+            setState(() {
+              _posts[i].isLikedByCurrentUser = (likeStatus == 'liked');
+            });
+          }
+        }
+      }
+    } catch (e) {
+      print('DEBUG: Error checking post like status: $e');
+    }
+  }
+  
+  // Add a method to handle liking/unliking a post
+  Future<void> _toggleLike(Post post) async {
+    if (_currentUserId == null) return;
+    
+    // Optimistically update the UI
+    setState(() {
+      if (post.isLikedByCurrentUser) {
+        post.isLikedByCurrentUser = false;
+        post.begeniSayisi--;
+      } else {
+        post.isLikedByCurrentUser = true;
+        post.begeniSayisi++;
       }
     });
+    
+    try {
+      final headers = {
+        'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+        'Content-Type': 'application/json',
+      };
+      
+      if (post.isLikedByCurrentUser) {
+        // Add like
+        final response = await http.post(
+          Uri.parse('${ConfigLoader.apiUrl}/routers/post_likes.php'),
+          headers: headers,
+          body: jsonEncode({
+            'post_id': post.id,
+            'begenen_id': _currentUserId
+          })
+        );
+        
+        if (response.statusCode != 200 && response.statusCode != 201) {
+          // Revert if API call failed
+          setState(() {
+            post.isLikedByCurrentUser = false;
+            post.begeniSayisi--;
+          });
+          print('DEBUG: Failed to like post: ${response.statusCode}');
+        }
+      } else {
+        // Remove like
+        final response = await http.delete(
+          Uri.parse('${ConfigLoader.apiUrl}/routers/post_likes.php?post_id=${post.id}&user_id=$_currentUserId'),
+          headers: headers
+        );
+        
+        if (response.statusCode != 200) {
+          // Revert if API call failed
+          setState(() {
+            post.isLikedByCurrentUser = true;
+            post.begeniSayisi++;
+          });
+          print('DEBUG: Failed to unlike post: ${response.statusCode}');
+        }
+      }
+    } catch (e) {
+      // Revert on error
+      setState(() {
+        post.isLikedByCurrentUser = !post.isLikedByCurrentUser;
+        post.begeniSayisi += post.isLikedByCurrentUser ? 1 : -1;
+      });
+      print('DEBUG: Error toggling like: $e');
+    }
   }
 
   // Builds a single post item (Keep as is, VisibilityDetector handles seen logic)
@@ -746,10 +841,13 @@ class _HomePageState extends State<HomePage> {
                   Row(
                     children: [
                       IconButton(
-                        icon: Icon(Icons.thumb_up_alt_outlined, color: Colors.grey), // Placeholder icon
-                        onPressed: () { /* TODO: Implement like action */ },
+                        icon: Icon(
+                          post.isLikedByCurrentUser ? Icons.thumb_up : Icons.thumb_up_alt_outlined,
+                          color: post.isLikedByCurrentUser ? Colors.red : Colors.grey,
+                        ),
+                        onPressed: () => _toggleLike(post),
                       ),
-                      Text('${post.begeniSayisi}'), // Placeholder count
+                      Text('${post.begeniSayisi}'),
                       SizedBox(width: 8),
                       IconButton(
                         icon: Icon(Icons.comment_outlined, color: Colors.grey),
@@ -770,7 +868,6 @@ class _HomePageState extends State<HomePage> {
                         icon: Icon(Icons.send_outlined, color: Colors.grey),
                         onPressed: () => _showSharePanel(post),
                       ),
-                       Text('${post.paylasilmaSayisi}'),
                     ],
                   ),
                   IconButton(

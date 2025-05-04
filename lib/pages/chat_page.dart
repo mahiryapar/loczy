@@ -258,6 +258,8 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {  // A
   String? _chatTopicId; // Added declaration for chat topic ID (used for logging/fallback)
   // --- End MQTT Client Variables ---
 
+  // Add a cache for post creator usernames to avoid redundant API calls
+  final Map<int, String> _postCreatorCache = {};
 
   @override
   void initState() {
@@ -283,6 +285,8 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {  // A
       Future.delayed(Duration(milliseconds: 500), () {
         if (mounted) {
           _markVisibleMessagesAsRead();
+          // Also try to scroll to bottom again after dependencies change
+          _scrollToBottom(isInitial: true, forceJump: true);
         }
       });
     }
@@ -676,8 +680,22 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {  // A
 
           if (initialLoad) {
             _messages = fetchedMessages.reversed.toList(); // Show newest first
-             // Scroll to bottom after initial load
-             WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(isInitial: true));
+            
+            // Improved initial scroll logic with multiple attempts
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              // First scroll attempt (immediate)
+              _scrollToBottom(isInitial: true);
+              
+              // Second attempt after a short delay
+              Future.delayed(Duration(milliseconds: 200), () {
+                if (mounted) _scrollToBottom(isInitial: true);
+                
+                // Third attempt after layout should be more stable
+                Future.delayed(Duration(milliseconds: 500), () {
+                  if (mounted) _scrollToBottom(isInitial: true, forceJump: true);
+                });
+              });
+            });
           } else {
             // Prepend older messages to the top of the list
             _messages.insertAll(0, fetchedMessages.reversed);
@@ -737,6 +755,35 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {  // A
     }
   }
 
+  // Improved scroll function with better reliability
+  void _scrollToBottom({bool isInitial = false, bool withDelay = false, bool forceJump = false}) {
+    if (!_scrollController.hasClients) return;
+     
+    // If we need a delay (for keyboard or new messages), add a small delay
+    final scrollDelay = withDelay ? 150 : (isInitial ? 100 : 0);
+     
+    Future.delayed(Duration(milliseconds: scrollDelay), () {
+      if (!_scrollController.hasClients || !mounted) return;
+       
+      final maxScroll = _scrollController.position.maxScrollExtent;
+      
+      // Print debug info to help diagnose scroll issues
+      print("DEBUG (ChatPage): Scrolling to bottom. Current: ${_scrollController.position.pixels}, Max: $maxScroll");
+      
+      // Using jumpTo for initial load or when force jump is needed for reliability
+      if (isInitial || forceJump) {
+        // Direct jump is more reliable for initial positioning
+        _scrollController.jumpTo(maxScroll);
+      } else {
+        // Smooth animation for user-initiated scrolls
+        _scrollController.animateTo(
+          maxScroll,
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
 
   // Modified to send via POST to API and then publish via MQTT
   Future<void> _sendMessage() async {
@@ -772,8 +819,8 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {  // A
       _messages.add(tempMessage);
       _messageController.clear();
     });
-    // Improved: Use withDelay to ensure reliable scrolling after state update
-    _scrollToBottom(withDelay: true);
+    // Improved: Force jump to bottom after sending a message for reliability
+    _scrollToBottom(withDelay: true, forceJump: true);
 
     // Check if this is a new chat (no chat ID exists)
     if (_currentChatId == null) {
@@ -1032,31 +1079,463 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {  // A
     }
   }
 
-  // Improved scroll function with delay option for more reliable scrolling
-  void _scrollToBottom({bool isInitial = false, bool withDelay = false}) {
-     if (!_scrollController.hasClients) return;
-     
-     // If we need a delay (for keyboard or new messages), add a small delay
-     final scrollDelay = withDelay ? 100 : 0;
-     
-     Future.delayed(Duration(milliseconds: scrollDelay), () {
-       if (!_scrollController.hasClients) return;
-       
-       final maxScroll = _scrollController.position.maxScrollExtent;
-       final duration = isInitial ? Duration(milliseconds: 1) : Duration(milliseconds: 300); 
-       final curve = Curves.easeOut;
+  @override
+  Widget build(BuildContext context) {
+    // Show loading indicator while fetching user ID
+    if (_isFetchingUserId) {
+      return Scaffold(
+        appBar: AppBar(title: Text('Yükleniyor...')), // Simple loading app bar
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    // Show error if user ID couldn't be loaded
+    if (_myUserId == null) {
+       return Scaffold(
+         appBar: AppBar(title: Text('Hata')),
+         body: Center(child: Text('Sohbet yüklenemedi. Kullanıcı kimliği bulunamadı.')),
+       );
+    }
 
-       // Use addPostFrameCallback to ensure layout is complete before scrolling
-       WidgetsBinding.instance.addPostFrameCallback((_) {
-         if (_scrollController.hasClients) { // Check again inside callback
-            _scrollController.animateTo(
-              maxScroll,
-              duration: duration,
-              curve: curve,
+    // Original Scaffold build when user ID is available
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => KullaniciGosterPage(userId: widget.userId),
+              ),
             );
-         }
-       });
-     });
+          },
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundImage: NetworkImage(widget.profilePicUrl),
+              ),
+              SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.name,
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    '@${widget.username}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                  // Add MQTT connection status indicator (optional)
+                  // Text(
+                  //   _isMqttConnected ? (_isSubscribed ? 'Bağlı (Sohbet)' : 'Bağlı') : 'Bağlantı Yok',
+                  //   style: TextStyle(fontSize: 10, color: _isMqttConnected ? Colors.green : Colors.red),
+                  // ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        elevation: 1.0,
+      ),
+      body: Column(
+        children: [
+          // Show loading indicator at the top when fetching older messages
+          // Use _messages.isNotEmpty to ensure it only shows during pagination
+          if (_isLoadingMessages && _messages.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          Expanded(
+            // Show initial loading indicator only when messages are empty AND loading
+            child: _messages.isEmpty && _isLoadingMessages
+                ? Center(child: CircularProgressIndicator()) // Loading indicator for initial load
+                : _messages.isEmpty && !_isLoadingMessages
+                    ? Center(child: Text('Henüz mesaj yok.')) // No messages text
+                    : NotificationListener<ScrollNotification>(
+                        onNotification: (ScrollNotification scrollInfo) {
+                          // Check if user has stopped scrolling
+                          if (scrollInfo is ScrollEndNotification) {
+                            // Add a small delay to mark visible messages as read
+                            Future.delayed(Duration(milliseconds: 300), () {
+                              if (mounted) {
+                                _markVisibleMessagesAsRead();
+                              }
+                            });
+                          }
+                          return false;
+                        },
+                        child: ListView.builder(
+                          controller: _scrollController,
+                          padding: EdgeInsets.all(10.0),
+                          itemCount: _messages.length,
+                          itemBuilder: (context, index) {
+                            final message = _messages[index];
+                            return _buildMessageBubble(message);
+                          },
+                          // Add these properties to improve initial positioning
+                          reverse: false, // Keep normal order with newest at bottom
+                          shrinkWrap: false, // Better performance for long lists
+                        ),
+                      ),
+          ),
+          // Listen for keyboard resize using LayoutBuilder
+          LayoutBuilder(
+            builder: (context, constraints) {
+              // When layout changes and keyboard is visible, trigger scroll
+              if (_isKeyboardVisible) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _scrollToBottom();
+                });
+              }
+              return _buildMessageInputBar();
+            }
+          ),
+        ],
+      ),
+      // Add resize behavior to handle keyboard better
+      resizeToAvoidBottomInset: true,
+    );
+  }
+
+  // Update _buildMessageBubble to fix shared post display
+  Widget _buildMessageBubble(Message message) {
+    final bool isSentByMe = message.senderId == _myUserId!;
+    final align = isSentByMe ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final color = isSentByMe ? Theme.of(context).primaryColor : Colors.grey[300];
+    final textColor = isSentByMe ? Colors.white : Colors.black87;
+    final radius = isSentByMe
+        ? BorderRadius.only(
+            topLeft: Radius.circular(15),
+            bottomLeft: Radius.circular(15),
+            bottomRight: Radius.circular(15),
+          )
+        : BorderRadius.only(
+            topRight: Radius.circular(15),
+            bottomLeft: Radius.circular(15),
+            bottomRight: Radius.circular(15),
+          );
+
+    // Set consistent max width for all message types
+    final maxMessageWidth = MediaQuery.of(context).size.width * 0.75;
+    
+    // Build message content based on type (regular text vs shared post)
+    Widget messageContentWidget;
+    
+    if (message.isSharedPost && message.postId != null) {
+      // Shared post content
+      messageContentWidget = GestureDetector(
+        onTap: () {
+          // Navigate to post details page when post is tapped
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PostGosterPage(postId: message.postId!),
+            ),
+          );
+        },
+        child: Container(
+          padding: EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: radius,
+          ),
+          // Fixed width constraint to prevent expanding when username loads
+          constraints: BoxConstraints(maxWidth: maxMessageWidth),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Post header
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      message.isVideo ? Icons.videocam : Icons.photo, 
+                      size: 16, 
+                      color: textColor
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      "Paylaşılan Post",
+                      style: TextStyle(
+                        color: textColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Post preview - Fixed to properly display the image
+              Container(
+                constraints: BoxConstraints(
+                  maxWidth: maxMessageWidth - 8, // Account for parent padding
+                  maxHeight: 150,
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Image (either thumbnail or actual image)
+                      message.thumbnailUrl != null && message.thumbnailUrl!.isNotEmpty
+                          ? Image.network(
+                              message.thumbnailUrl!,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              height: double.infinity,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Container(
+                                  height: 100,
+                                  width: maxMessageWidth - 16, // Account for parent padding
+                                  color: Colors.grey[200],
+                                  child: Center(child: CircularProgressIndicator()),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  height: 100,
+                                  width: maxMessageWidth - 16, // Account for parent padding
+                                  color: Colors.grey[200],
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.error, color: Colors.red),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        "Görüntü yüklenemedi",
+                                        style: TextStyle(
+                                          color: Colors.red[300],
+                                          fontSize: 12,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            )
+                          : Container(
+                              height: 100,
+                              width: maxMessageWidth - 16, // Account for parent padding
+                              color: Colors.grey[200],
+                              child: Center(child: Text("Görüntü yok")),
+                            ),
+                      
+                      // Play button overlay for videos
+                      if (message.isVideo)
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.5),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.play_arrow,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              // Post caption
+              if (message.postCaption != null && message.postCaption!.isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Text(
+                    message.postCaption!,
+                    style: TextStyle(color: textColor),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              
+              // Add information about post creator (Fetch from post details) - Fix the width issue
+              Container(
+                constraints: BoxConstraints(maxWidth: maxMessageWidth - 8),
+                child: FutureBuilder<String?>(
+                  // Provide a unique key based on the postId to avoid rebuilds
+                  key: ValueKey('post_creator_${message.postId}'),
+                  future: _fetchPostCreator(message.postId!),
+                  builder: (context, snapshot) {
+                    // Simplify the builder logic
+                    return Container(
+                      constraints: BoxConstraints(maxWidth: maxMessageWidth - 8),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.person,
+                              size: 12,
+                              color: textColor.withOpacity(0.7),
+                            ),
+                            SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                snapshot.connectionState == ConnectionState.done && snapshot.hasData
+                                    ? "@${snapshot.data!}"
+                                    : "Yükleniyor...",
+                                style: TextStyle(
+                                  color: textColor.withOpacity(0.7),
+                                  fontSize: 11,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              
+              // Message footer (tap to view)
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Text(
+                  "Görüntülemek için dokunun",
+                  style: TextStyle(
+                    color: textColor.withOpacity(0.7),
+                    fontSize: 10,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      // Regular text message
+      messageContentWidget = Container(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        constraints: BoxConstraints(maxWidth: maxMessageWidth),
+        decoration: BoxDecoration(color: color, borderRadius: radius),
+        child: Text(message.text, style: TextStyle(color: textColor)),
+      );
+    }
+
+    // Combine the message content with timestamp and read indicators
+    Widget messageContent = Container(
+      margin: EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: isSentByMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          messageContentWidget,
+          SizedBox(height: 2),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 5),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: isSentByMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+              children: [
+                Text(
+                  message.time,
+                  style: TextStyle(color: Colors.grey, fontSize: 10),
+                ),
+                // Show "Görüldü" based on message.isRead flag
+                if (isSentByMe && message.isRead)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4.0),
+                    child: Text(
+                      'Görüldü',
+                      style: TextStyle(color: Colors.blueGrey, fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                // Indicate sending status for local messages
+                if (isSentByMe && message.isLocal)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4.0),
+                    child: Icon(Icons.schedule, size: 10, color: Colors.grey),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // For messages NOT sent by me (received messages), wrap in VisibilityDetector
+    if (!isSentByMe) {
+      return VisibilityDetector(
+        key: Key('msg_${message.id}'), // Unique key for each message
+        onVisibilityChanged: (visibilityInfo) {
+          var visiblePercentage = visibilityInfo.visibleFraction * 100;
+          // Mark as read if >75% visible and not already read
+          if (visiblePercentage > 75 && !message.isRead && !_locallyMarkedAsSeenIds.contains(message.id) && message.id != 0) {
+            print("DEBUG (ChatPage): Message ${message.id} became visible (>${visiblePercentage.toStringAsFixed(1)}%) and is not marked as read. Marking as read.");
+            _markMessageAsRead(message.id);
+          }
+        },
+        child: messageContent,
+      );
+    } else {
+      // Messages sent by me don't need visibility detection
+      return messageContent;
+    }
+  }
+  
+  // New method to fetch post creator username
+  Future<String?> _fetchPostCreator(int postId) async {
+    // Check cache first
+    if (_postCreatorCache.containsKey(postId)) {
+      return _postCreatorCache[postId];
+    }
+    
+    try {
+      final response = await http.get(
+        Uri.parse('${ConfigLoader.apiUrl}/routers/posts.php?id=$postId'),
+        headers: {
+          'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+          'Content-Type': 'application/json',
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        final postData = json.decode(response.body);
+        final creatorId = postData['atan_id'];
+        
+        if (creatorId != null) {
+          final userResponse = await http.get(
+            Uri.parse('${ConfigLoader.apiUrl}/routers/users.php?id=$creatorId'),
+            headers: {
+              'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+              'Content-Type': 'application/json',
+            },
+          );
+          
+          if (userResponse.statusCode == 200) {
+            final userData = json.decode(userResponse.body);
+            final username = userData['nickname'] ?? 'bilinmeyen';
+            
+            // Cache the result
+            _postCreatorCache[postId] = username;
+            return username;
+          }
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching post creator: $e');
+      return null;
+    }
   }
 
   // Modified to send read receipt via POST to API and then publish via MQTT
@@ -1184,438 +1663,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {  // A
         print("ERROR (ChatPage - MQTT): Failed to publish notification - $e");
       }
     });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Show loading indicator while fetching user ID
-    if (_isFetchingUserId) {
-      return Scaffold(
-        appBar: AppBar(title: Text('Yükleniyor...')), // Simple loading app bar
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-    // Show error if user ID couldn't be loaded
-    if (_myUserId == null) {
-       return Scaffold(
-         appBar: AppBar(title: Text('Hata')),
-         body: Center(child: Text('Sohbet yüklenemedi. Kullanıcı kimliği bulunamadı.')),
-       );
-    }
-
-    // Original Scaffold build when user ID is available
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => KullaniciGosterPage(userId: widget.userId),
-              ),
-            );
-          },
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundImage: NetworkImage(widget.profilePicUrl),
-              ),
-              SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.name,
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    '@${widget.username}',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-                  // Add MQTT connection status indicator (optional)
-                  // Text(
-                  //   _isMqttConnected ? (_isSubscribed ? 'Bağlı (Sohbet)' : 'Bağlı') : 'Bağlantı Yok',
-                  //   style: TextStyle(fontSize: 10, color: _isMqttConnected ? Colors.green : Colors.red),
-                  // ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        elevation: 1.0,
-      ),
-      body: Column(
-        children: [
-          // Show loading indicator at the top when fetching older messages
-          // Use _messages.isNotEmpty to ensure it only shows during pagination
-          if (_isLoadingMessages && _messages.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-          Expanded(
-            // Show initial loading indicator only when messages are empty AND loading
-            child: _messages.isEmpty && _isLoadingMessages
-                ? Center(child: CircularProgressIndicator()) // Loading indicator for initial load
-                : _messages.isEmpty && !_isLoadingMessages
-                    ? Center(child: Text('Henüz mesaj yok.')) // No messages text
-                    : NotificationListener<ScrollNotification>(
-                        onNotification: (ScrollNotification scrollInfo) {
-                          // Check if user has stopped scrolling
-                          if (scrollInfo is ScrollEndNotification) {
-                            // Add a small delay to mark visible messages as read
-                            Future.delayed(Duration(milliseconds: 300), () {
-                              if (mounted) {
-                                _markVisibleMessagesAsRead();
-                              }
-                            });
-                          }
-                          return false;
-                        },
-                        child: ListView.builder(
-                          controller: _scrollController,
-                          padding: EdgeInsets.all(10.0),
-                          itemCount: _messages.length,
-                          itemBuilder: (context, index) {
-                            final message = _messages[index];
-                            return _buildMessageBubble(message);
-                          },
-                        ),
-                      ),
-          ),
-          // Listen for keyboard resize using LayoutBuilder
-          LayoutBuilder(
-            builder: (context, constraints) {
-              // When layout changes and keyboard is visible, trigger scroll
-              if (_isKeyboardVisible) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _scrollToBottom();
-                });
-              }
-              return _buildMessageInputBar();
-            }
-          ),
-        ],
-      ),
-      // Add resize behavior to handle keyboard better
-      resizeToAvoidBottomInset: true,
-    );
-  }
-
-  // Update _buildMessageBubble to fix shared post display
-  Widget _buildMessageBubble(Message message) {
-    final bool isSentByMe = message.senderId == _myUserId!;
-    final align = isSentByMe ? CrossAxisAlignment.end : CrossAxisAlignment.start;
-    final color = isSentByMe ? Theme.of(context).primaryColor : Colors.grey[300];
-    final textColor = isSentByMe ? Colors.white : Colors.black87;
-    final radius = isSentByMe
-        ? BorderRadius.only(
-            topLeft: Radius.circular(15),
-            bottomLeft: Radius.circular(15),
-            bottomRight: Radius.circular(15),
-          )
-        : BorderRadius.only(
-            topRight: Radius.circular(15),
-            bottomLeft: Radius.circular(15),
-            bottomRight: Radius.circular(15),
-          );
-
-    // Build message content based on type (regular text vs shared post)
-    Widget messageContentWidget;
-    
-    if (message.isSharedPost && message.postId != null) {
-      // Shared post content
-      messageContentWidget = GestureDetector(
-        onTap: () {
-          // Navigate to post details page when post is tapped
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => PostGosterPage(postId: message.postId!),
-            ),
-          );
-        },
-        child: Container(
-          padding: EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: radius,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Post header
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      message.isVideo ? Icons.videocam : Icons.photo, 
-                      size: 16, 
-                      color: textColor
-                    ),
-                    SizedBox(width: 4),
-                    Text(
-                      "Paylaşılan Post",
-                      style: TextStyle(
-                        color: textColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              // Post preview - Fixed to properly display the image
-              Container(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.6,
-                  maxHeight: 150,
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // Image (either thumbnail or actual image)
-                      message.thumbnailUrl != null && message.thumbnailUrl!.isNotEmpty
-                          ? Image.network(
-                              message.thumbnailUrl!,
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                              height: double.infinity,
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Container(
-                                  height: 100,
-                                  width: MediaQuery.of(context).size.width * 0.5,
-                                  color: Colors.grey[200],
-                                  child: Center(child: CircularProgressIndicator()),
-                                );
-                              },
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  height: 100,
-                                  width: MediaQuery.of(context).size.width * 0.5,
-                                  color: Colors.grey[200],
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.error, color: Colors.red),
-                                      SizedBox(height: 4),
-                                      Text(
-                                        "Görüntü yüklenemedi",
-                                        style: TextStyle(
-                                          color: Colors.red[300],
-                                          fontSize: 12,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            )
-                          : Container(
-                              height: 100,
-                              width: MediaQuery.of(context).size.width * 0.5,
-                              color: Colors.grey[200],
-                              child: Center(child: Text("Görüntü yok")),
-                            ),
-                      
-                      // Play button overlay for videos
-                      if (message.isVideo)
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.5),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.play_arrow,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              
-              // Post caption
-              if (message.postCaption != null && message.postCaption!.isNotEmpty)
-                Padding(
-                  padding: EdgeInsets.all(8),
-                  child: Text(
-                    message.postCaption!,
-                    style: TextStyle(color: textColor),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              
-              // Add information about post creator (Fetch from post details)
-              FutureBuilder(
-                future: _fetchPostCreator(message.postId!),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.done && 
-                      snapshot.hasData && 
-                      snapshot.data != null) {
-                    return Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.person,
-                            size: 12,
-                            color: textColor.withOpacity(0.7),
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            "@${snapshot.data!}",
-                            style: TextStyle(
-                              color: textColor.withOpacity(0.7),
-                              fontSize: 11,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                  return SizedBox.shrink();
-                },
-              ),
-              
-              // Message footer (tap to view)
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Text(
-                  "Görüntülemek için dokunun",
-                  style: TextStyle(
-                    color: textColor.withOpacity(0.7),
-                    fontSize: 10,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    } else {
-      // Regular text message
-      messageContentWidget = Container(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-        decoration: BoxDecoration(color: color, borderRadius: radius),
-        child: Text(message.text, style: TextStyle(color: textColor)),
-      );
-    }
-
-    // Combine the message content with timestamp and read indicators
-    Widget messageContent = Container(
-      margin: EdgeInsets.symmetric(vertical: 4),
-      child: Column(
-        crossAxisAlignment: isSentByMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          messageContentWidget,
-          SizedBox(height: 2),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 5),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: isSentByMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-              children: [
-                Text(
-                  message.time,
-                  style: TextStyle(color: Colors.grey, fontSize: 10),
-                ),
-                // Show "Görüldü" based on message.isRead flag
-                if (isSentByMe && message.isRead)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4.0),
-                    child: Text(
-                      'Görüldü',
-                      style: TextStyle(color: Colors.blueGrey, fontSize: 10, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                // Indicate sending status for local messages
-                if (isSentByMe && message.isLocal)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4.0),
-                    child: Icon(Icons.schedule, size: 10, color: Colors.grey),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-
-    // For messages NOT sent by me (received messages), wrap in VisibilityDetector
-    if (!isSentByMe) {
-      return VisibilityDetector(
-        key: Key('msg_${message.id}'), // Unique key for each message
-        onVisibilityChanged: (visibilityInfo) {
-          var visiblePercentage = visibilityInfo.visibleFraction * 100;
-          // Mark as read if >75% visible and not already read
-          if (visiblePercentage > 75 && !message.isRead && !_locallyMarkedAsSeenIds.contains(message.id) && message.id != 0) {
-            print("DEBUG (ChatPage): Message ${message.id} became visible (>${visiblePercentage.toStringAsFixed(1)}%) and is not marked as read. Marking as read.");
-            _markMessageAsRead(message.id);
-          }
-        },
-        child: messageContent,
-      );
-    } else {
-      // Messages sent by me don't need visibility detection
-      return messageContent;
-    }
-  }
-  
-  // New method to fetch post creator username
-  Future<String?> _fetchPostCreator(int postId) async {
-    try {
-      final response = await http.get(
-        Uri.parse('${ConfigLoader.apiUrl}/routers/posts.php?id=$postId'),
-        headers: {
-          'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
-          'Content-Type': 'application/json',
-        },
-      );
-      
-      if (response.statusCode == 200) {
-        final postData = json.decode(response.body);
-        final creatorId = postData['atan_id'];
-        
-        if (creatorId != null) {
-          final userResponse = await http.get(
-            Uri.parse('${ConfigLoader.apiUrl}/routers/users.php?id=$creatorId'),
-            headers: {
-              'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
-              'Content-Type': 'application/json',
-            },
-          );
-          
-          if (userResponse.statusCode == 200) {
-            final userData = json.decode(userResponse.body);
-            return userData['nickname'] ?? 'bilinmeyen';
-          }
-        }
-      }
-      return null;
-    } catch (e) {
-      print('Error fetching post creator: $e');
-      return null;
-    }
   }
 
   Widget _buildMessageInputBar() {

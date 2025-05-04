@@ -177,6 +177,12 @@ class NotificationService {
       final data = json.decode(payload);
       final String type = data['type'] ?? '';
       
+      // Extract notification_id if available to mark as read
+      final int? notificationId = data['notification_id'];
+      if (notificationId != null) {
+        await _markNotificationAsRead(notificationId);
+      }
+      
       switch (type) {
         case 'chat_message':
           // Handle chat notifications (existing logic)
@@ -241,6 +247,26 @@ class NotificationService {
       }
     } catch (e) {
       print('ERROR: Error handling notification tap: $e');
+    }
+  }
+  
+  // Add method to mark notifications as read
+  Future<void> _markNotificationAsRead(int notificationId) async {
+    try {
+      final response = await http.put(
+        Uri.parse('${ConfigLoader.apiUrl}/routers/notifications.php'),
+        headers: {
+          'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({'notification_id': notificationId}),
+      );
+      
+      if (response.statusCode != 200) {
+        print('Failed to mark notification $notificationId as read: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error marking notification as read: $e');
     }
   }
 }
