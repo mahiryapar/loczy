@@ -7,6 +7,7 @@ import 'package:loczy/config_getter.dart';
 import 'post_goster.dart';
 import 'profile_edit.dart';
 import 'takip_listele.dart'; // Import the new page
+import 'chat_page.dart'; // Add import for ChatPage
 
 class KullaniciGosterPage extends StatefulWidget {
   final int userId; 
@@ -321,10 +322,135 @@ class _KullaniciGosterPageState extends State<KullaniciGosterPage> {
 
 
   // SONRA YAPILACAKLAR
-  void _sendMessage() {
-    // Navigate to chat screen with widget.userId
-    print('Navigate to chat with user ${widget.userId}');
-    // Navigator.push(context, MaterialPageRoute(builder: (context) => ChatPage(userId: widget.userId)));
+  // Check for existing chat between current user and profile user
+  Future<int?> _findExistingChat() async {
+    if (_currentUserId <= 0) {
+      print("Error: Current user ID not valid: $_currentUserId");
+      return null;
+    }
+
+    try {
+      // Get all chats for the current user
+      final response = await http.get(
+        Uri.parse('$apiUrl/routers/chats.php?userId=$_currentUserId'),
+        headers: {
+          'Authorization': 'Bearer $bearerToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> chats = json.decode(response.body);
+        print("Found ${chats.length} chats for user $_currentUserId");
+        
+        // Search for a chat that involves both the current user and the profile user
+        for (var chat in chats) {
+          if (chat is Map<String, dynamic>) {
+            // Extract user IDs (handling both integer and string formats)
+            int? user1Id = chat['kullanici1_id'] is int 
+                ? chat['kullanici1_id'] 
+                : int.tryParse(chat['kullanici1_id']?.toString() ?? '');
+            
+            int? user2Id = chat['kullanici2_id'] is int 
+                ? chat['kullanici2_id'] 
+                : int.tryParse(chat['kullanici2_id']?.toString() ?? '');
+
+            // Check if this chat involves both users
+            if ((user1Id == _currentUserId && user2Id == widget.userId) ||
+                (user2Id == _currentUserId && user1Id == widget.userId)) {
+              // Found a matching chat, return its ID
+              int chatId = chat['id'] is int ? chat['id'] : int.parse(chat['id'].toString());
+              print("Found existing chat ID $chatId between users $_currentUserId and ${widget.userId}");
+              return chatId;
+            }
+          }
+        }
+        // No matching chat found
+        print("No existing chat found between users $_currentUserId and ${widget.userId}");
+        return null;
+      } else {
+        print("Failed to fetch chats: ${response.statusCode}, ${response.body}");
+        return null;
+      }
+    } catch (e) {
+      print("Error finding existing chat: $e");
+      return null;
+    }
+  }
+
+  // Updated _sendMessage method to check for existing chat and navigate
+  Future<void> _sendMessage() async {
+    if (_currentUserId <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Kullanıcı bilgisi alınamadı')),
+      );
+      return;
+    }
+    
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFFD06100)),
+          ),
+        );
+      },
+    );
+
+    try {
+      // First, get user details to display in chat
+      final userResponse = await http.get(
+        Uri.parse('$apiUrl/routers/users.php?id=${widget.userId}'),
+        headers: {
+          'Authorization': 'Bearer $bearerToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (userResponse.statusCode != 200) {
+        // Close loading dialog
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Kullanıcı bilgileri alınamadı')),
+        );
+        return;
+      }
+
+      final userDetails = json.decode(userResponse.body);
+      final name = userDetails['isim'] + ' ' + userDetails['soyisim'];
+      final username = userDetails['nickname'] ?? 'bilinmeyen';
+      final profilePicUrl = userDetails['profil_fotosu_url'] ?? ConfigLoader.defaultProfilePhoto;
+
+      // Check if a chat already exists between these users
+      final existingChatId = await _findExistingChat();
+      
+      // Close loading dialog
+      Navigator.pop(context);
+
+      // Navigate to chat page with or without existing chat ID
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatPage(
+            chatId: existingChatId, // May be null if no existing chat
+            userId: widget.userId,
+            name: name,
+            username: username,
+            profilePicUrl: profilePicUrl,
+          ),
+        ),
+      );
+    } catch (e) {
+      // Close loading dialog
+      Navigator.pop(context);
+      print("Error navigating to chat: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Bir hata oluştu: $e')),
+      );
+    }
   }
 
   void _navigateToFollowers() {

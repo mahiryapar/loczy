@@ -11,8 +11,9 @@ import 'package:mqtt_client/mqtt_client.dart'; // Import MQTT Client
 import 'package:mqtt_client/mqtt_server_client.dart'; // Import MQTT Server Client
 import 'dart:io'; // For Platform check if needed
 import 'dart:math';
+import 'package:loczy/pages/post_goster.dart'; // Import PostGosterPage
 
-// Updated message model to match API response
+// Updated message model to handle post shares with thumbnails
 class Message {
   final int id; // Assuming API provides an ID
   final String text;
@@ -22,6 +23,14 @@ class Message {
   bool isRead; // Make isRead mutable to update from MQTT
   final bool isLocal; // Flag to indicate if message is only local (not yet confirmed from server/MQTT)
   final int? tempId; // Temporary ID for local messages before server ID is known
+  
+  // Enhanced fields for shared posts
+  final bool isSharedPost;
+  final int? postId;
+  final String? postImageUrl;  // Original media URL (may be video or image)
+  final String? thumbnailUrl;  // Thumbnail URL (for display in chat)
+  final bool isVideo;          // Whether this is a video post
+  final String? postCaption;
 
   Message({
     required this.id,
@@ -32,6 +41,12 @@ class Message {
     required this.isRead,
     this.isLocal = false, // Default to false
     this.tempId,
+    this.isSharedPost = false,
+    this.postId,
+    this.postImageUrl,
+    this.thumbnailUrl,
+    this.isVideo = false,
+    this.postCaption,
   });
 
   // Factory constructor to create a Message from JSON (API or MQTT)
@@ -74,12 +89,102 @@ class Message {
        print("DEBUG (ChatPage - Message.fromJson): Date field is null or not in expected format: $dateValue");
     }
 
+    // Check if this is a shared post message with improved format
+    bool isSharedPost = false;
+    int? postId;
+    String? postImageUrl;
+    String? thumbnailUrl;
+    bool isVideo = false;
+    String? postCaption;
+    
+    String messageText = json['mesaj'] ?? json['text'] ?? '';
+    
+    if (messageText.startsWith('post:')) {
+      // Legacy format with colon separator - kept for backward compatibility
+      isSharedPost = true;
+      // ... existing parsing logic for legacy format ...
+      
+      // Try parsing with old format
+      try {
+        // First get the postId which is right after 'post:'
+        final idEndPos = messageText.indexOf(':', 5); // Start after 'post:'
+        if (idEndPos > 5) {
+          postId = int.tryParse(messageText.substring(5, idEndPos));
+          
+          // Now get the main imageUrl
+          final urlStartPos = idEndPos + 1;
+          final urlEndPos = messageText.indexOf(':', urlStartPos);
+          if (urlEndPos > urlStartPos) {
+            postImageUrl = messageText.substring(urlStartPos, urlEndPos);
+            
+            // Now get the thumbnail URL
+            final thumbStartPos = urlEndPos + 1;
+            final thumbEndPos = messageText.indexOf(':', thumbStartPos);
+            if (thumbEndPos > thumbStartPos) {
+              thumbnailUrl = messageText.substring(thumbStartPos, thumbEndPos);
+              
+              // Now get isVideo (0/1)
+              final isVideoStartPos = thumbEndPos + 1;
+              final isVideoEndPos = messageText.indexOf(':', isVideoStartPos);
+              if (isVideoEndPos > isVideoStartPos) {
+                isVideo = messageText.substring(isVideoStartPos, isVideoEndPos) == "1";
+                
+                // Finally get the caption (everything after the last colon)
+                if (isVideoEndPos < messageText.length - 1) {
+                  postCaption = messageText.substring(isVideoEndPos + 1);
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        print("Error parsing legacy shared post message: $e");
+        // Keep the original message text in case parsing fails
+      }
+    } 
+    else if (messageText.startsWith('post|||')) {
+      // New format with ||| separator
+      isSharedPost = true;
+      try {
+        // Split by the new separator
+        List<String> parts = messageText.split('|||');
+        
+        if (parts.length >= 2) {
+          postId = int.tryParse(parts[1]);
+          
+          if (parts.length >= 3) {
+            postImageUrl = parts[2]; // Original media URL
+            
+            if (parts.length >= 4) {
+              thumbnailUrl = parts[3]; // Thumbnail URL
+              
+              if (parts.length >= 5) {
+                isVideo = parts[4] == "1"; // Is this a video?
+                
+                if (parts.length >= 6) {
+                  // Join remaining parts if caption contains the separator
+                  postCaption = parts.sublist(5).join('|||');
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        print("Error parsing new format shared post message: $e");
+        // Keep the original message text in case parsing fails
+      }
+    }
+
+    // If parsing failed for either format, show a placeholder
+    if (isSharedPost && postId == null) {
+      messageText = "Paylaşılan gönderiyi görüntülemek için tıklayın";
+    }
 
     return Message(
       // Use 'id' from API or MQTT payload. Provide default if missing.
       // MQTT might send 'messageId' or just 'id'
       id: json['id'] ?? json['messageId'] ?? 0,
-      text: json['mesaj'] ?? json['text'] ?? '', // Check both API and MQTT field names
+      text: messageText, // Check both API and MQTT field names
       senderId: json['kimden_id'] ?? json['senderId'] ?? 0,
       receiverId: json['kime_id'] ?? json['receiverId'] ?? 0,
       time: formattedTime,
@@ -87,6 +192,12 @@ class Message {
       // MQTT might send 'isRead' directly as bool
       isRead: (json['okundu_mu'] == 1),
       isLocal: false, // Messages from JSON are never local-only
+      isSharedPost: isSharedPost,
+      postId: postId,
+      postImageUrl: postImageUrl,
+      thumbnailUrl: thumbnailUrl,
+      isVideo: isVideo,
+      postCaption: postCaption,
     );
   }
 
@@ -1196,36 +1307,227 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {  // A
     );
   }
 
-  // Update _buildMessageBubble - Add VisibilityDetector for received messages
+  // Update _buildMessageBubble to fix shared post display
   Widget _buildMessageBubble(Message message) {
-     final bool isSentByMe = message.senderId == _myUserId!;
-     final align = isSentByMe ? CrossAxisAlignment.end : CrossAxisAlignment.start;
-     final color = isSentByMe ? Theme.of(context).primaryColor : Colors.grey[300];
-     final textColor = isSentByMe ? Colors.white : Colors.black87;
-     final radius = isSentByMe
-         ? BorderRadius.only(
+    final bool isSentByMe = message.senderId == _myUserId!;
+    final align = isSentByMe ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final color = isSentByMe ? Theme.of(context).primaryColor : Colors.grey[300];
+    final textColor = isSentByMe ? Colors.white : Colors.black87;
+    final radius = isSentByMe
+        ? BorderRadius.only(
             topLeft: Radius.circular(15),
             bottomLeft: Radius.circular(15),
             bottomRight: Radius.circular(15),
           )
-         : BorderRadius.only(
+        : BorderRadius.only(
             topRight: Radius.circular(15),
             bottomLeft: Radius.circular(15),
             bottomRight: Radius.circular(15),
           );
 
-    // Build the message content widget
+    // Build message content based on type (regular text vs shared post)
+    Widget messageContentWidget;
+    
+    if (message.isSharedPost && message.postId != null) {
+      // Shared post content
+      messageContentWidget = GestureDetector(
+        onTap: () {
+          // Navigate to post details page when post is tapped
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PostGosterPage(postId: message.postId!),
+            ),
+          );
+        },
+        child: Container(
+          padding: EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: radius,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Post header
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      message.isVideo ? Icons.videocam : Icons.photo, 
+                      size: 16, 
+                      color: textColor
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      "Paylaşılan Post",
+                      style: TextStyle(
+                        color: textColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Post preview - Fixed to properly display the image
+              Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.6,
+                  maxHeight: 150,
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Image (either thumbnail or actual image)
+                      message.thumbnailUrl != null && message.thumbnailUrl!.isNotEmpty
+                          ? Image.network(
+                              message.thumbnailUrl!,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              height: double.infinity,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Container(
+                                  height: 100,
+                                  width: MediaQuery.of(context).size.width * 0.5,
+                                  color: Colors.grey[200],
+                                  child: Center(child: CircularProgressIndicator()),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  height: 100,
+                                  width: MediaQuery.of(context).size.width * 0.5,
+                                  color: Colors.grey[200],
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.error, color: Colors.red),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        "Görüntü yüklenemedi",
+                                        style: TextStyle(
+                                          color: Colors.red[300],
+                                          fontSize: 12,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            )
+                          : Container(
+                              height: 100,
+                              width: MediaQuery.of(context).size.width * 0.5,
+                              color: Colors.grey[200],
+                              child: Center(child: Text("Görüntü yok")),
+                            ),
+                      
+                      // Play button overlay for videos
+                      if (message.isVideo)
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.5),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.play_arrow,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              // Post caption
+              if (message.postCaption != null && message.postCaption!.isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Text(
+                    message.postCaption!,
+                    style: TextStyle(color: textColor),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              
+              // Add information about post creator (Fetch from post details)
+              FutureBuilder(
+                future: _fetchPostCreator(message.postId!),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.done && 
+                      snapshot.hasData && 
+                      snapshot.data != null) {
+                    return Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.person,
+                            size: 12,
+                            color: textColor.withOpacity(0.7),
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            "@${snapshot.data!}",
+                            style: TextStyle(
+                              color: textColor.withOpacity(0.7),
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return SizedBox.shrink();
+                },
+              ),
+              
+              // Message footer (tap to view)
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Text(
+                  "Görüntülemek için dokunun",
+                  style: TextStyle(
+                    color: textColor.withOpacity(0.7),
+                    fontSize: 10,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      // Regular text message
+      messageContentWidget = Container(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+        decoration: BoxDecoration(color: color, borderRadius: radius),
+        child: Text(message.text, style: TextStyle(color: textColor)),
+      );
+    }
+
+    // Combine the message content with timestamp and read indicators
     Widget messageContent = Container(
       margin: EdgeInsets.symmetric(vertical: 4),
       child: Column(
         crossAxisAlignment: isSentByMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-            decoration: BoxDecoration(color: color, borderRadius: radius),
-            child: Text(message.text, style: TextStyle(color: textColor)),
-          ),
+          messageContentWidget,
           SizedBox(height: 2),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 5),
@@ -1237,7 +1539,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {  // A
                   message.time,
                   style: TextStyle(color: Colors.grey, fontSize: 10),
                 ),
-                // Show "Görüldü" based on message.isRead flag (updated by MQTT receipt)
+                // Show "Görüldü" based on message.isRead flag
                 if (isSentByMe && message.isRead)
                   Padding(
                     padding: const EdgeInsets.only(left: 4.0),
@@ -1246,12 +1548,12 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {  // A
                       style: TextStyle(color: Colors.blueGrey, fontSize: 10, fontWeight: FontWeight.bold),
                     ),
                   ),
-                 // Indicate sending status for local messages
-                 if (isSentByMe && message.isLocal)
-                   Padding(
-                     padding: const EdgeInsets.only(left: 4.0),
-                     child: Icon(Icons.schedule, size: 10, color: Colors.grey),
-                   ),
+                // Indicate sending status for local messages
+                if (isSentByMe && message.isLocal)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4.0),
+                    child: Icon(Icons.schedule, size: 10, color: Colors.grey),
+                  ),
               ],
             ),
           ),
@@ -1276,6 +1578,43 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {  // A
     } else {
       // Messages sent by me don't need visibility detection
       return messageContent;
+    }
+  }
+  
+  // New method to fetch post creator username
+  Future<String?> _fetchPostCreator(int postId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ConfigLoader.apiUrl}/routers/posts.php?id=$postId'),
+        headers: {
+          'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+          'Content-Type': 'application/json',
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        final postData = json.decode(response.body);
+        final creatorId = postData['atan_id'];
+        
+        if (creatorId != null) {
+          final userResponse = await http.get(
+            Uri.parse('${ConfigLoader.apiUrl}/routers/users.php?id=$creatorId'),
+            headers: {
+              'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+              'Content-Type': 'application/json',
+            },
+          );
+          
+          if (userResponse.statusCode == 200) {
+            final userData = json.decode(userResponse.body);
+            return userData['nickname'] ?? 'bilinmeyen';
+          }
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching post creator: $e');
+      return null;
     }
   }
 

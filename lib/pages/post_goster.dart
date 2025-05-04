@@ -5,6 +5,7 @@ import 'package:loczy/config_getter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 import 'package:loczy/pages/yorumlar_panel.dart';
+import 'package:loczy/pages/post_paylas_panel.dart'; // Import the new share panel
 
 class PostGosterPage extends StatefulWidget {
   final int postId;
@@ -22,6 +23,8 @@ class _PostGosterPageState extends State<PostGosterPage> {
 
   bool saveChecked = false;
   bool isSaved = false;
+  
+  int paylasilma_sayisi = 0; // Add this to track share count
 
   Future<Map<String, dynamic>> _fetchPostDetails() async {
     final response = await http.get(
@@ -36,6 +39,7 @@ class _PostGosterPageState extends State<PostGosterPage> {
     if (response.statusCode == 200) {
       Map<String, dynamic> data = jsonDecode(response.body);
       begeni_sayisi = data['begeni_sayisi'] ?? 0;
+      paylasilma_sayisi = data['paylasilma_sayisi'] ?? 0; // Store share count
 
       SharedPreferences prefs = await SharedPreferences.getInstance();
       final userId = prefs.getInt('userId')?.toString() ?? '';
@@ -235,10 +239,16 @@ class _PostGosterPageState extends State<PostGosterPage> {
                           style: TextStyle(fontSize: 16),
                         ),
                         SizedBox(width: 16),
-                        Icon(Icons.send, color: Colors.grey),
+                        // SHARE BUTTON - Updated with functionality
+                        IconButton(
+                          icon: Icon(Icons.send, color: Colors.grey),
+                          onPressed: () {
+                            _showSharePanel(postDetails);
+                          },
+                        ),
                         SizedBox(width: 8),
                         Text(
-                          '${postDetails['paylasilma_sayisi'] ?? 0}',
+                          '$paylasilma_sayisi',
                           style: TextStyle(fontSize: 16),
                         ),
                       ],
@@ -307,6 +317,35 @@ class _PostGosterPageState extends State<PostGosterPage> {
     );
   }
 
+  // New method to show the share panel
+  void _showSharePanel(Map<String, dynamic> postDetails) {
+    final String mediaUrl = postDetails['video_foto_url'] ?? '';
+    final bool isVideo = mediaUrl.endsWith('.mp4');
+    
+    // Use thumbnail URL if available, otherwise use the media URL itself
+    final String thumbnailUrl = postDetails['thumbnail_url'] ?? mediaUrl;
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => PostPaylasPanel(
+        postId: widget.postId,
+        postImageUrl: mediaUrl,
+        thumbnailUrl: thumbnailUrl,
+        postText: postDetails['aciklama'] ?? '',
+        isVideo: isVideo,
+      ),
+    ).then((shared) {
+      if (shared == true) {
+        // Refresh post details to get updated share count
+        setState(() {
+          paylasilma_sayisi++;
+        });
+      }
+    });
+  }
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(

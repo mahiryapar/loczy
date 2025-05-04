@@ -11,6 +11,7 @@ import 'package:loczy/pages/kullanici_goster.dart';
 // REMOVED: import 'package:async/async.dart'; // Not strictly needed for this logic
 import 'package:visibility_detector/visibility_detector.dart'; // Import VisibilityDetector
 import 'package:collection/collection.dart'; // Import for groupBy
+import 'package:loczy/pages/post_paylas_panel.dart'; // Import the new share panel
 
 // Define a Post model (adapt based on your actual API response)
 class Post {
@@ -19,6 +20,7 @@ class Post {
   final String creatorNickname;
   final String creatorProfilePicUrl;
   final String mediaUrl;
+  final String thumbnailUrl; // Add thumbnail URL if needed
   final String aciklama;
   final String konum;
   final DateTime paylasilmaTarihi;
@@ -36,6 +38,7 @@ class Post {
     required this.creatorNickname,
     required this.creatorProfilePicUrl,
     required this.mediaUrl,
+    required this.thumbnailUrl,
     required this.aciklama,
     required this.konum,
     required this.paylasilmaTarihi,
@@ -56,6 +59,7 @@ class Post {
       creatorNickname: userJson['nickname'] ?? 'Bilinmeyen',
       creatorProfilePicUrl: userJson['profil_fotosu_url'] ?? ConfigLoader.defaultProfilePhoto,
       mediaUrl: json['video_foto_url'] ?? '',
+      thumbnailUrl: json['thumbnail_url'] ?? '', // Add thumbnail URL if needed
       aciklama: json['aciklama'] ?? '',
       konum: json['konum'] ?? 'Konum Yok',
       paylasilmaTarihi: json['paylasilma_tarihi'] != null
@@ -620,6 +624,32 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // Add a method to show the share panel with thumbnail support
+  void _showSharePanel(Post post) {
+    final bool isVideo = post.mediaUrl.endsWith('.mp4');
+    
+    // Use thumbnail URL if available, otherwise use the media URL itself
+    final String thumbnailUrl = post.thumbnailUrl.isNotEmpty ? post.thumbnailUrl : post.mediaUrl;
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => PostPaylasPanel(
+        postId: post.id,
+        postImageUrl: post.mediaUrl,
+        thumbnailUrl: thumbnailUrl,
+        postText: post.aciklama,
+        isVideo: isVideo,
+      ),
+    ).then((shared) {
+      if (shared == true) {
+        // Refresh posts to get updated share count
+        _refreshPage();
+      }
+    });
+  }
+
   // Builds a single post item (Keep as is, VisibilityDetector handles seen logic)
   Widget _buildPostItem(Post post) {
     // ... (no changes needed here, relies on _seenPostIds state) ...
@@ -738,7 +768,7 @@ class _HomePageState extends State<HomePage> {
                       SizedBox(width: 8),
                       IconButton(
                         icon: Icon(Icons.send_outlined, color: Colors.grey),
-                        onPressed: () { /* TODO: Implement share action */ },
+                        onPressed: () => _showSharePanel(post),
                       ),
                        Text('${post.paylasilmaSayisi}'),
                     ],
