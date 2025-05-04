@@ -240,6 +240,7 @@ class MqttService {
       // Handle personal notifications for the user
       if (topic.startsWith('user/') && topic.endsWith('/notifications')) {
         _processUserNotification(data);
+        print('MQTT Service: User notification processed: $data'); // DEBUG PRINT
       } 
       // Handle other message types...
     } catch (e) {
@@ -248,32 +249,81 @@ class MqttService {
   }
 
   void _processUserNotification(Map<String, dynamic> data) {
-    // Check if this is a chat message notification
-    if (data['type'] == 'chat_message') {
-      final String title = data['title'] ?? 'Yeni Mesaj';
-      final String body = data['body'] ?? '';
-      final int senderId = data['senderId'] ?? 0;
-      final int? chatId = data['chatId'];
-      
-      // Create a payload with chat navigation information
-      final payload = json.encode({
-        'type': 'chat_message',
-        'senderId': senderId,
-        'chatId': chatId,
-        'senderName': title,
-      });
-      
-      // Show notification
-      _notificationService.showNotification(
-        senderId.hashCode, // Use sender ID as notification ID
-        title,
-        body,
-        payload: payload,
-      );
-      
-      // Also add to notification provider for AppBar display
-      _notificationProvider.addNotification(title, body);
+    final String type = data['type'] ?? '';
+    final String title = data['title'] ?? 'Bildirim';
+    final String body = data['body'] ?? '';
+    
+    // Create a common payload with basic notification info
+    Map<String, dynamic> payloadData = {
+      'type': type,
+      'title': title,
+      'body': body,
+    };
+    
+    // Add type-specific data to the payload
+    switch (type) {
+      case 'chat_message':
+        final int senderId = data['senderId'] ?? 0;
+        final int? chatId = data['chatId'];
+        payloadData['senderId'] = senderId;
+        payloadData['chatId'] = chatId;
+        payloadData['senderName'] = title;
+        break;
+        
+      case 'follow':
+        // Add any specific follow data if needed
+        final String? username = data['username']; // If available in payload
+        if (username != null) {
+          payloadData['username'] = username;
+        }
+        break;
+        
+      case 'follow_request':
+        final int userId = data['user_id'] ?? 0;
+        payloadData['user_id'] = userId;
+        break;
+        
+      case 'comment':
+      case 'post_like':
+        final int postId = data['post_id'] ?? 0;
+        payloadData['post_id'] = postId;
+        break;
+        
+      case 'follow_accept':
+        final int? userId = data['user_id'];
+        if (userId != null) {
+          payloadData['user_id'] = userId;
+        }
+        break;
     }
+    
+    // Generate a notification ID based on timestamp and type
+    int notificationId;
+    if (type == 'chat_message') {
+      // For chat messages, use sender ID as before
+      notificationId = (data['senderId'] ?? 0).hashCode;
+    } else if (type == 'follow_request') {
+      // For follow requests, use user ID to ensure unique notification
+      notificationId = (data['user_id'] ?? 0).hashCode;
+    } else if (type == 'comment' || type == 'post_like') {
+      // For post-related notifications, use post ID + type 
+      notificationId = ((data['post_id'] ?? 0).toString() + type).hashCode;
+    } else {
+      // For other types, use timestamp to ensure uniqueness
+      notificationId = DateTime.now().millisecondsSinceEpoch.remainder(100000);
+    }
+    
+    // Show notification
+    final payload = json.encode(payloadData);
+    _notificationService.showNotification(
+      notificationId,
+      title,
+      body,
+      payload: payload,
+    );
+    
+    // Add to notification provider for AppBar display
+    _notificationProvider.addNotification(title, body, type: type, payload: payloadData);
   }
 
   void _handleMessage(String topic, String payload) {

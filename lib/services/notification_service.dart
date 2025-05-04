@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:loczy/pages/chat_page.dart';
 import 'package:http/http.dart' as http;
 import 'package:loczy/config_getter.dart';
+import 'package:loczy/pages/post_goster.dart';
 
 // Add this variable to hold navigation context globally
 GlobalKey<NavigatorState>? navigatorKey;
@@ -174,32 +175,69 @@ class NotificationService {
     print('Notification tapped with payload: $payload');
     try {
       final data = json.decode(payload);
+      final String type = data['type'] ?? '';
       
-      // Handle chat notifications
-      if (data['type'] == 'chat_message') {
-        // Extract chat data
-        final int senderId = data['senderId'];
-        final int? chatId = data['chatId'];
-        
-        // Fetch complete user details (similar to mesajlar.dart)
-        final userDetails = await _fetchUserDetails(senderId);
-        
-        final String name = '${userDetails['isim']} ${userDetails['soyisim']}';
-        final String username = userDetails['nickname'] ?? 'bilinmeyen';
-        final String profilePicUrl = userDetails['profil_fotosu_url'] ?? ConfigLoader.defaultProfilePhoto;
-        print('name: $name, username: $username, profilePicUrl: $profilePicUrl, chatId: $chatId, senderId: $senderId');
-        // Navigate to chat page with complete information
-        navigatorKey!.currentState!.push(
-          MaterialPageRoute(
-            builder: (context) => ChatPage(
-              chatId: chatId,
-              userId: senderId,
-              name: name,
-              username: username,
-              profilePicUrl: profilePicUrl,
+      switch (type) {
+        case 'chat_message':
+          // Handle chat notifications (existing logic)
+          final int senderId = data['senderId'];
+          final int? chatId = data['chatId'];
+          
+          // Fetch complete user details (similar to mesajlar.dart)
+          final userDetails = await _fetchUserDetails(senderId);
+          
+          final String name = '${userDetails['isim']} ${userDetails['soyisim']}';
+          final String username = userDetails['nickname'] ?? 'bilinmeyen';
+          final String profilePicUrl = userDetails['profil_fotosu_url'] ?? ConfigLoader.defaultProfilePhoto;
+          
+          // Navigate to chat page with complete information
+          navigatorKey!.currentState!.push(
+            MaterialPageRoute(
+              builder: (context) => ChatPage(
+                chatId: chatId,
+                userId: senderId,
+                name: name,
+                username: username,
+                profilePicUrl: profilePicUrl,
+              ),
             ),
-          ),
-        );
+          );
+          break;
+          
+        case 'comment':
+        case 'post_like':
+          // For both comment and post_like, navigate to the post
+          final int postId = data['post_id'];
+          // Import the post display page at the top of the file
+          navigatorKey!.currentState!.push(
+            MaterialPageRoute(
+              builder: (context) => PostGosterPage(postId: postId),
+            ),
+          );
+          break;
+          
+        case 'follow':
+        case 'follow_accept':
+          // For follow notifications, we could navigate to the user's profile
+          // or just acknowledge the notification
+          final int? userId = data['user_id'];
+          if (userId != null) {
+            // If you have a user profile page, navigate to it
+            // navigatorKey!.currentState!.push(
+            //   MaterialPageRoute(
+            //     builder: (context) => UserProfilePage(userId: userId),
+            //   ),
+            // );
+          }
+          break;
+          
+        case 'follow_request':
+          // Follow requests will be handled in the AppBar UI
+          // No navigation needed when tapping the notification itself
+          break;
+          
+        default:
+          print('Unknown notification type: $type');
       }
     } catch (e) {
       print('ERROR: Error handling notification tap: $e');

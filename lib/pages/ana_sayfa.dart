@@ -18,6 +18,7 @@ import 'package:loczy/pages/home_page.dart';
 import 'package:loczy/config_getter.dart';
 import 'package:http/http.dart' as http;
 import 'package:loczy/pages/chat_page.dart'; // Import your chat page
+import 'package:loczy/pages/post_goster.dart';
 
 class AnaSayfa extends StatefulWidget {
   final Function logout;
@@ -182,53 +183,91 @@ class _AnaSayfaState extends State<AnaSayfa> {
     }
   }
 
-  // Add new method to handle notification tap based on its content
+  // Add new method to handle notification tap based on its type
   void _handleNotificationTap(NotificationModel notification) {
-    // Extract potential chat data from notification text
-    // This is a simple approach - a more robust approach would be to store metadata with notifications
-    final String title = notification.title; // Assuming this is sender's name
+    final String type = notification.type;
+    final Map<String, dynamic>? payload = notification.payload;
     
-    // Check if we can find a user with this name to get their ID
-    _findUserByName(title).then((userData) {
-      if (userData != null) {
-        final int userId = userData['id'];
-        final int? chatId = userData['chatId']; // Might be null for new chats
+    if (payload == null) {
+      _toggleNotifications(); // Just close panel if no payload
+      return;
+    }
+    
+    switch (type) {
+      case 'chat_message':
+        final int? senderId = payload['senderId'];
+        if (senderId != null) {
+          // Find user by ID and navigate to chat (existing logic)
+          _findUserById(senderId).then((userData) {
+            if (userData != null) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ChatPage(
+                    chatId: payload['chatId'],
+                    userId: senderId,
+                    name: userData['name'],
+                    username: userData['username'],
+                    profilePicUrl: userData['profilePicUrl'],
+                  ),
+                ),
+              ).then((_) {
+                _toggleNotifications(); // Close panel when returning
+              });
+            } else {
+              _toggleNotifications();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Kullanıcı bilgisine erişilemedi.')),
+              );
+            }
+          });
+        } else {
+          _toggleNotifications();
+        }
+        break;
         
-        // Navigate to the chat page
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ChatPage(
-              chatId: chatId,
-              userId: userId,
-              name: userData['name'],
-              username: userData['username'],
-              profilePicUrl: userData['profilePicUrl'],
+      case 'post_like':
+      case 'comment':
+        final int? postId = payload['post_id'];
+        if (postId != null) {
+          // Navigate to post detail page
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PostGosterPage(postId: postId),
             ),
-          ),
-        ).then((_) {
-          // Optionally refresh data when returning
-          _toggleNotifications(); // Close notification panel
-        });
-      } else {
-        // If we couldn't find the user, just close the notification panel
-        _toggleNotifications(); 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Kullanıcı bilgisine erişilemedi.')),
-        );
-      }
-    });
+          ).then((_) {
+            _toggleNotifications(); // Close panel when returning
+          });
+        } else {
+          _toggleNotifications();
+        }
+        break;
+        
+      case 'follow':
+      case 'follow_accept':
+        // Just close notification panel, or navigate to profile if desired
+        _toggleNotifications();
+        break;
+        
+      case 'follow_request':
+        // Don't close the panel - user might want to accept/reject
+        // The buttons are already visible in the notification
+        break;
+        
+      default:
+        _toggleNotifications();
+    }
   }
-
-  // Helper method to find user by name
-  Future<Map<String, dynamic>?> _findUserByName(String name) async {
-    int? foundChatId; // Variable to store the chat ID if found
+  
+  // Helper method to find user by ID
+  Future<Map<String, dynamic>?> _findUserById(int userId) async {
+    int? foundChatId;
 
     try {
-      // 1. Find the target user by nickname
+      // 1. Fetch user details
       final userResponse = await http.get(
-        // Assuming the endpoint expects nickname for lookup
-        Uri.parse('${ConfigLoader.apiUrl}/routers/users.php?nickname=$name'),
+        Uri.parse('${ConfigLoader.apiUrl}/routers/users.php?id=$userId'),
         headers: {
           'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
           'Content-Type': 'application/json',
@@ -238,16 +277,12 @@ class _AnaSayfaState extends State<AnaSayfa> {
       if (userResponse.statusCode == 200) {
         final Map<String, dynamic> userData = json.decode(userResponse.body);
 
-        // Check if user data is valid and contains an ID
-        if (userData.isNotEmpty && userData['id'] != null) {
-          final int targetUserId = userData['id'];
-
-          // 2. Get the current user's ID from SharedPreferences
+        if (userData.isNotEmpty) {
+          // 2. Get the current user's ID
           SharedPreferences prefs = await SharedPreferences.getInstance();
           final int? currentUserId = prefs.getInt('userId');
 
-
-          // 3. Fetch chats for the current user if ID is available
+          // 3. Check if there's an existing chat
           if (currentUserId != null) {
             try {
               final chatResponse = await http.get(
@@ -260,47 +295,130 @@ class _AnaSayfaState extends State<AnaSayfa> {
 
               if (chatResponse.statusCode == 200) {
                 final List<dynamic> chats = json.decode(chatResponse.body);
-                // 4. Find the chat involving the target user
                 for (var chat in chats) {
                   if (chat is Map<String, dynamic>) {
-                    // Check both potential user ID fields in the chat data
-                    if ((chat['kullanici1_id'] == targetUserId && chat['kullanici2_id'] == currentUserId) ||
-                        (chat['kullanici2_id'] == targetUserId && chat['kullanici1_id'] == currentUserId)) {
+                    if ((chat['kullanici1_id'] == userId && chat['kullanici2_id'] == currentUserId) ||
+                        (chat['kullanici2_id'] == userId && chat['kullanici1_id'] == currentUserId)) {
                       foundChatId = chat['id'];
-                      break; // Found the chat, no need to look further
+                      break;
                     }
                   }
                 }
-              } else {
-                print('Error fetching chats: ${chatResponse.statusCode} ${chatResponse.body}');
               }
             } catch (e) {
               print('Error during chat fetch: $e');
             }
-          } else {
-             print('Could not get current user ID from SharedPreferences.');
           }
 
-
-          // 5. Return the combined user and chat data
+          // 4. Return user data with chat ID
           return {
-            'id': targetUserId,
+            'id': userId,
             'name': (userData['isim'] ?? '') + ' ' + (userData['soyisim'] ?? ''),
             'username': userData['nickname'] ?? 'bilinmeyen',
             'profilePicUrl': userData['profil_fotosu_url'] ?? ConfigLoader.defaultProfilePhoto,
-            'chatId': foundChatId, // Use the found chat ID (or null)
+            'chatId': foundChatId,
           };
-        } else {
-           print('User data received from users.php is empty or missing ID.');
-           return null; // User not found or data invalid
         }
-      } else {
-         print('Error finding user by name: ${userResponse.statusCode} ${userResponse.body}');
-         return null; // User lookup failed
       }
     } catch (e) {
-      print('Error in _findUserByName: $e');
-      return null;
+      print('Error in _findUserById: $e');
+    }
+    return null;
+  }
+
+  // Handle follow request accept/reject
+  Future<void> _handleFollowRequestAction(int requesterId, bool isAccept) async {
+    if (requesterId <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Geçersiz kullanıcı ID\'si')),
+      );
+      return;
+    }
+
+    try {
+      // Get current user ID
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      final int? currentUserId = prefs.getInt('userId');
+
+      if (currentUserId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Kullanıcı bilgileri alınamadı')),
+        );
+        return;
+      }
+
+      // Construct the URL with query parameters based on the action
+      String url;
+      if (isAccept) {
+        url = '${ConfigLoader.apiUrl}/routers/follow_reqs.php?user_id_approved=$requesterId&requested_id=$currentUserId';
+      } else {
+        url = '${ConfigLoader.apiUrl}/routers/follow_reqs.php?user_id=$requesterId&requested_id=$currentUserId';
+      }
+
+      final response = await http.delete( // Still using POST, but parameters are in the URL
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+          'Content-Type': 'application/json', // Keep Content-Type header if the API expects it, even without a body
+        },
+        // Remove the body as parameters are now in the URL
+        // body: json.encode(requestData),
+      );
+
+      if (response.statusCode == 200) {
+        // Success - remove the notification
+        final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+        
+        // Fix: Use standard for loop to find and remove notification instead of firstWhere with null
+        NotificationModel? notificationToRemove;
+        for (var notification in notificationProvider.notifications) {
+          if (notification.type == 'follow_request' && 
+              notification.payload != null && 
+              notification.payload!['user_id'] == requesterId) {
+            notificationToRemove = notification;
+            break;
+          }
+        }
+
+        if (notificationToRemove != null) {
+          notificationProvider.removeNotification(notificationToRemove);
+        }
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isAccept ? 'Takip isteği kabul edildi' : 'Takip isteği reddedildi'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else {
+        // Handle error
+        String errorMessage = 'İstek işlenirken bir sorun oluştu: ${response.statusCode}';
+        try {
+          // Try to decode error message from response body if available
+          final errorBody = json.decode(response.body);
+          if (errorBody is Map && errorBody.containsKey('message')) {
+            errorMessage += ' - ${errorBody['message']}';
+          } else if (errorBody is Map && errorBody.containsKey('error')) {
+             errorMessage += ' - ${errorBody['error']}';
+          }
+        } catch (_) {
+          // Ignore decoding errors, use default message
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Hata: $e'),
+          duration: Duration(seconds: 3),
+        ),
+      );
     }
   }
 
@@ -401,16 +519,75 @@ class _AnaSayfaState extends State<AnaSayfa> {
                                            itemCount: notifications.length,
                                            itemBuilder: (context, index) {
                                              final notification = notifications[index];
-                                             // ---- Make ListTile Dismissible ----
+                                             
+                                             // Check if this is a follow request notification
+                                             final bool isFollowRequest = notification.type == 'follow_request';
+                                             
+                                             // Create the base content widget based on notification type
+                                             Widget contentWidget = ListTile(
+                                               dense: true,
+                                               title: Text(notification.title, 
+                                                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                                               subtitle: Text(notification.body, 
+                                                 style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                               onTap: () => _handleNotificationTap(notification),
+                                             );
+                                             
+                                             // For follow requests, add accept/reject buttons
+                                             if (isFollowRequest && notification.payload != null) {
+                                               final int requesterId = notification.payload!['user_id'] ?? 0;
+                                               if (requesterId > 0) {
+                                                 contentWidget = Column(
+                                                   crossAxisAlignment: CrossAxisAlignment.start,
+                                                   children: [
+                                                     ListTile(
+                                                       dense: true,
+                                                       title: Text(notification.title, 
+                                                         style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                                                       subtitle: Text(notification.body, 
+                                                         style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                                     ),
+                                                     Padding(
+                                                       padding: EdgeInsets.only(left: 16.0, right: 16.0, bottom: 8.0),
+                                                       child: Row(
+                                                         mainAxisAlignment: MainAxisAlignment.end,
+                                                         children: [
+                                                           // Accept button
+                                                           ElevatedButton(
+                                                             onPressed: () => _handleFollowRequestAction(requesterId, true),
+                                                             style: ElevatedButton.styleFrom(
+                                                               backgroundColor: Colors.green,
+                                                               padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                                                               minimumSize: Size(60, 30),
+                                                             ),
+                                                             child: Text('Onayla', style: TextStyle(fontSize: 12)),
+                                                           ),
+                                                           SizedBox(width: 8),
+                                                           // Reject button
+                                                           ElevatedButton(
+                                                             onPressed: () => _handleFollowRequestAction(requesterId, false),
+                                                             style: ElevatedButton.styleFrom(
+                                                               backgroundColor: Colors.red,
+                                                               padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                                                               minimumSize: Size(60, 30),
+                                                             ),
+                                                             child: Text('Reddet', style: TextStyle(fontSize: 12)),
+                                                           ),
+                                                         ],
+                                                       ),
+                                                     ),
+                                                   ],
+                                                 );
+                                               }
+                                             }
+                                             
+                                             // Make the notification dismissible
                                              return Dismissible(
-                                               key: ValueKey(notification), // Use notification object or a unique ID
+                                               key: ValueKey(notification),
                                                direction: DismissDirection.horizontal,
                                                onDismissed: (direction) {
-                                                 // Remove the item from the data source
                                                  Provider.of<NotificationProvider>(context, listen: false)
                                                      .removeNotification(notification);
-
-                                                 // Optional: Show a confirmation SnackBar
                                                  ScaffoldMessenger.of(context).removeCurrentSnackBar();
                                                  ScaffoldMessenger.of(context).showSnackBar(
                                                    SnackBar(
@@ -419,7 +596,6 @@ class _AnaSayfaState extends State<AnaSayfa> {
                                                     ),
                                                  );
                                                },
-                                               // ... Dismissible backgrounds ...
                                                background: Container(
                                                  color: Colors.redAccent.withOpacity(0.8),
                                                  alignment: Alignment.centerLeft,
@@ -432,14 +608,8 @@ class _AnaSayfaState extends State<AnaSayfa> {
                                                  padding: EdgeInsets.symmetric(horizontal: 20.0),
                                                  child: Icon(Icons.delete_sweep, color: Colors.white),
                                                ),
-                                               child: ListTile( // The original ListTile
-                                                 dense: true,
-                                                 title: Text(notification.title, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                                                 subtitle: Text(notification.body, style: TextStyle(color: Colors.white70, fontSize: 12)),
-                                                 onTap: () => _handleNotificationTap(notification), // Add this line to handle taps
-                                               ),
+                                               child: contentWidget,
                                              );
-                                             // ---- End Dismissible ----
                                            },
                                          ),
                                        ),
