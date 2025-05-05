@@ -28,4 +28,9 @@ class ConfigLoader {
   static String get vm_ip {
     return _config?['vm_ip'] ?? '';
   }
+
+  static String get google_api {
+    return _config?['google_api'] ?? '';
+  }
+
 }

@@ -1,0 +1,333 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.example.loczy"
+4    android:versionCode="1"
+5    android:versionName="0.1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="21"
+9        android:targetSdkVersion="35" />
+10
+11    <uses-permission android:name="android.permission.INTERNET" />
+11-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:2:5-66
+11-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:2:22-64
+12    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+12-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:3:5-77
+12-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:3:22-74
+13    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+13-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:4:5-78
+13-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:4:22-76
+14    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+14-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:5:5-80
+14-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:5:22-78
+15    <!-- Add permission for receiving boot completed broadcast if needed for background service -->
+16    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+16-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:7:5-80
+16-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:7:22-78
+17    <!-- Add permission for scheduling exact alarms if needed for background tasks -->
+18    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+18-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:9:5-79
+18-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:9:22-76
+19
+20    <uses-feature android:name="android.hardware.location.gps" />
+20-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:10:5-66
+20-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:10:19-63
+21    <!--
+22         Required to query activities that can process text, see:
+23         https://developer.android.com/training/package-visibility and
+24         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
+25
+26         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin.
+27    -->
+28    <queries>
+28-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:49:5-54:15
+29        <intent>
+29-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:50:9-53:18
+30            <action android:name="android.intent.action.PROCESS_TEXT" />
+30-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:51:13-72
+30-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:51:21-70
+31
+32            <data android:mimeType="text/plain" />
+32-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:52:13-50
+32-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:52:19-48
+33        </intent>
+34    </queries>
+35
+36    <uses-permission android:name="android.permission.WAKE_LOCK" />
+36-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:9:5-68
+36-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:9:22-65
+37    <uses-permission android:name="android.permission.VIBRATE" />
+37-->[:flutter_local_notifications] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_local_notifications\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:7:5-66
+37-->[:flutter_local_notifications] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_local_notifications\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:7:22-63
+38    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+38-->[:flutter_local_notifications] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_local_notifications\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:8:5-77
+38-->[:flutter_local_notifications] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_local_notifications\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:8:22-74
+39    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+39-->[:flutter_video_info] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_video_info\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:7:5-80
+39-->[:flutter_video_info] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_video_info\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:7:22-77
+40    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+40-->[:flutter_video_info] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_video_info\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:8:5-81
+40-->[:flutter_video_info] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_video_info\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:8:22-78
+41    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+41-->[androidx.media3:media3-common:1.4.1] C:\Users\mahir\.gradle\caches\8.8\transforms\627dfc1cde5572719bc78e27bdebeb48\transformed\jetified-media3-common-1.4.1\AndroidManifest.xml:22:5-79
+41-->[androidx.media3:media3-common:1.4.1] C:\Users\mahir\.gradle\caches\8.8\transforms\627dfc1cde5572719bc78e27bdebeb48\transformed\jetified-media3-common-1.4.1\AndroidManifest.xml:22:22-76
+42
+43    <permission
+43-->[androidx.core:core:1.16.0] C:\Users\mahir\.gradle\caches\8.8\transforms\ca81867cac16ff4f476c0e27e55e9c12\transformed\core-1.16.0\AndroidManifest.xml:22:5-24:47
+44        android:name="com.example.loczy.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+44-->[androidx.core:core:1.16.0] C:\Users\mahir\.gradle\caches\8.8\transforms\ca81867cac16ff4f476c0e27e55e9c12\transformed\core-1.16.0\AndroidManifest.xml:23:9-81
+45        android:protectionLevel="signature" />
+45-->[androidx.core:core:1.16.0] C:\Users\mahir\.gradle\caches\8.8\transforms\ca81867cac16ff4f476c0e27e55e9c12\transformed\core-1.16.0\AndroidManifest.xml:24:9-44
+46
+47    <uses-permission android:name="com.example.loczy.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+47-->[androidx.core:core:1.16.0] C:\Users\mahir\.gradle\caches\8.8\transforms\ca81867cac16ff4f476c0e27e55e9c12\transformed\core-1.16.0\AndroidManifest.xml:26:5-97
+47-->[androidx.core:core:1.16.0] C:\Users\mahir\.gradle\caches\8.8\transforms\ca81867cac16ff4f476c0e27e55e9c12\transformed\core-1.16.0\AndroidManifest.xml:26:22-94
+48
+49    <application
+50        android:name="android.app.Application"
+50-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:14:9-42
+51        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+51-->[androidx.core:core:1.16.0] C:\Users\mahir\.gradle\caches\8.8\transforms\ca81867cac16ff4f476c0e27e55e9c12\transformed\core-1.16.0\AndroidManifest.xml:28:18-86
+52        android:extractNativeLibs="true"
+53        android:icon="@mipmap/ic_launcher"
+53-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:15:9-43
+54        android:label="Loczy"
+54-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:13:9-30
+55        android:usesCleartextTraffic="true" >
+55-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:12:9-44
+56        <activity
+56-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:16:9-37:20
+57            android:name="com.example.loczy.MainActivity"
+57-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:17:13-41
+58            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+58-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:22:13-163
+59            android:exported="true"
+59-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:18:13-36
+60            android:hardwareAccelerated="true"
+60-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:23:13-47
+61            android:launchMode="singleTop"
+61-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:19:13-43
+62            android:taskAffinity=""
+62-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:20:13-36
+63            android:theme="@style/LaunchTheme"
+63-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:21:13-47
+64            android:windowSoftInputMode="adjustResize" >
+64-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:24:13-55
+65
+66            <!--
+67                 Specifies an Android theme to apply to this Activity as soon as
+68                 the Android process has started. This theme is visible to the user
+69                 while the Flutter UI initializes. After that, this theme continues
+70                 to determine the Window background behind the Flutter UI.
+71            -->
+72            <meta-data
+72-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:29:13-32:17
+73                android:name="io.flutter.embedding.android.NormalTheme"
+73-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:30:15-70
+74                android:resource="@style/NormalTheme" />
+74-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:31:15-52
+75
+76            <intent-filter>
+76-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:33:13-36:29
+77                <action android:name="android.intent.action.MAIN" />
+77-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:34:17-68
+77-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:34:25-66
+78
+79                <category android:name="android.intent.category.LAUNCHER" />
+79-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:35:17-76
+79-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:35:27-74
+80            </intent-filter>
+81        </activity>
+82        <!--
+83             Don't delete the meta-data below.
+84             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java
+85        -->
+86        <meta-data
+86-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:40:9-42:33
+87            android:name="flutterEmbedding"
+87-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:41:13-44
+88            android:value="2" />
+88-->C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\AndroidManifest.xml:42:13-30
+89
+90        <service
+90-->[:geolocator_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\geolocator_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:8:9-12:56
+91            android:name="com.baseflow.geolocator.GeolocatorLocationService"
+91-->[:geolocator_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\geolocator_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:9:13-77
+92            android:enabled="true"
+92-->[:geolocator_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\geolocator_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:10:13-35
+93            android:exported="false"
+93-->[:geolocator_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\geolocator_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:11:13-37
+94            android:foregroundServiceType="location" />
+94-->[:geolocator_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\geolocator_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:12:13-53
+95        <service
+95-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:12:9-16:44
+96            android:name="id.flutter.flutter_background_service.BackgroundService"
+96-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:13:13-83
+97            android:enabled="true"
+97-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:14:13-35
+98            android:exported="true"
+98-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:15:13-36
+99            android:stopWithTask="false" />
+99-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:16:13-41
+100
+101        <receiver
+101-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:18:9-21:39
+102            android:name="id.flutter.flutter_background_service.WatchdogReceiver"
+102-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:19:13-82
+103            android:enabled="true"
+103-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:20:13-35
+104            android:exported="true" />
+104-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:21:13-36
+105        <receiver
+105-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:22:9-31:20
+106            android:name="id.flutter.flutter_background_service.BootReceiver"
+106-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:23:13-78
+107            android:enabled="true"
+107-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:24:13-35
+108            android:exported="true" >
+108-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:25:13-36
+109            <intent-filter>
+109-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:26:13-30:29
+110                <action android:name="android.intent.action.BOOT_COMPLETED" />
+110-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:27:17-79
+110-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:27:25-76
+111                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+111-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:28:17-82
+111-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:28:25-79
+112                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+112-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:29:17-84
+112-->[:flutter_background_service_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:29:25-81
+113            </intent-filter>
+114        </receiver>
+115
+116        <provider
+116-->[:image_picker_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:9:9-17:20
+117            android:name="io.flutter.plugins.imagepicker.ImagePickerFileProvider"
+117-->[:image_picker_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:10:13-82
+118            android:authorities="com.example.loczy.flutter.image_provider"
+118-->[:image_picker_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:11:13-74
+119            android:exported="false"
+119-->[:image_picker_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:12:13-37
+120            android:grantUriPermissions="true" >
+120-->[:image_picker_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:13:13-47
+121            <meta-data
+121-->[:image_picker_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:14:13-16:75
+122                android:name="android.support.FILE_PROVIDER_PATHS"
+122-->[:image_picker_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:15:17-67
+123                android:resource="@xml/flutter_image_picker_file_paths" />
+123-->[:image_picker_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:16:17-72
+124        </provider> <!-- Trigger Google Play services to install the backported photo picker module. -->
+125        <service
+125-->[:image_picker_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:19:9-31:19
+126            android:name="com.google.android.gms.metadata.ModuleDependencies"
+126-->[:image_picker_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:20:13-78
+127            android:enabled="false"
+127-->[:image_picker_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:21:13-36
+128            android:exported="false" >
+128-->[:image_picker_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:22:13-37
+129            <intent-filter>
+129-->[:image_picker_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:24:13-26:29
+130                <action android:name="com.google.android.gms.metadata.MODULE_DEPENDENCIES" />
+130-->[:image_picker_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:25:17-94
+130-->[:image_picker_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:25:25-91
+131            </intent-filter>
+132
+133            <meta-data
+133-->[:image_picker_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:28:13-30:36
+134                android:name="photopicker_activity:0:required"
+134-->[:image_picker_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:29:17-63
+135                android:value="" />
+135-->[:image_picker_android] C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml:30:17-33
+136        </service>
+137
+138        <activity
+138-->[com.google.android.gms:play-services-base:18.3.0] C:\Users\mahir\.gradle\caches\8.8\transforms\3ec9eea70bfac61c8df43fca11463746\transformed\jetified-play-services-base-18.3.0\AndroidManifest.xml:20:9-22:45
+139            android:name="com.google.android.gms.common.api.GoogleApiActivity"
+139-->[com.google.android.gms:play-services-base:18.3.0] C:\Users\mahir\.gradle\caches\8.8\transforms\3ec9eea70bfac61c8df43fca11463746\transformed\jetified-play-services-base-18.3.0\AndroidManifest.xml:20:19-85
+140            android:exported="false"
+140-->[com.google.android.gms:play-services-base:18.3.0] C:\Users\mahir\.gradle\caches\8.8\transforms\3ec9eea70bfac61c8df43fca11463746\transformed\jetified-play-services-base-18.3.0\AndroidManifest.xml:22:19-43
+141            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+141-->[com.google.android.gms:play-services-base:18.3.0] C:\Users\mahir\.gradle\caches\8.8\transforms\3ec9eea70bfac61c8df43fca11463746\transformed\jetified-play-services-base-18.3.0\AndroidManifest.xml:21:19-78
+142
+143        <meta-data
+143-->[com.google.android.gms:play-services-basement:18.3.0] C:\Users\mahir\.gradle\caches\8.8\transforms\a0024bf5c0a619e5e82ba657a1a2a710\transformed\jetified-play-services-basement-18.3.0\AndroidManifest.xml:21:9-23:69
+144            android:name="com.google.android.gms.version"
+144-->[com.google.android.gms:play-services-basement:18.3.0] C:\Users\mahir\.gradle\caches\8.8\transforms\a0024bf5c0a619e5e82ba657a1a2a710\transformed\jetified-play-services-basement-18.3.0\AndroidManifest.xml:22:13-58
+145            android:value="@integer/google_play_services_version" />
+145-->[com.google.android.gms:play-services-basement:18.3.0] C:\Users\mahir\.gradle\caches\8.8\transforms\a0024bf5c0a619e5e82ba657a1a2a710\transformed\jetified-play-services-basement-18.3.0\AndroidManifest.xml:23:13-66
+146
+147        <uses-library
+147-->[androidx.window:window:1.2.0] C:\Users\mahir\.gradle\caches\8.8\transforms\cbc7d75836d5409f940b19004c2fcd65\transformed\jetified-window-1.2.0\AndroidManifest.xml:23:9-25:40
+148            android:name="androidx.window.extensions"
+148-->[androidx.window:window:1.2.0] C:\Users\mahir\.gradle\caches\8.8\transforms\cbc7d75836d5409f940b19004c2fcd65\transformed\jetified-window-1.2.0\AndroidManifest.xml:24:13-54
+149            android:required="false" />
+149-->[androidx.window:window:1.2.0] C:\Users\mahir\.gradle\caches\8.8\transforms\cbc7d75836d5409f940b19004c2fcd65\transformed\jetified-window-1.2.0\AndroidManifest.xml:25:13-37
+150        <uses-library
+150-->[androidx.window:window:1.2.0] C:\Users\mahir\.gradle\caches\8.8\transforms\cbc7d75836d5409f940b19004c2fcd65\transformed\jetified-window-1.2.0\AndroidManifest.xml:26:9-28:40
+151            android:name="androidx.window.sidecar"
+151-->[androidx.window:window:1.2.0] C:\Users\mahir\.gradle\caches\8.8\transforms\cbc7d75836d5409f940b19004c2fcd65\transformed\jetified-window-1.2.0\AndroidManifest.xml:27:13-51
+152            android:required="false" />
+152-->[androidx.window:window:1.2.0] C:\Users\mahir\.gradle\caches\8.8\transforms\cbc7d75836d5409f940b19004c2fcd65\transformed\jetified-window-1.2.0\AndroidManifest.xml:28:13-37
+153
+154        <provider
+154-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\mahir\.gradle\caches\8.8\transforms\4cb785211ebdc8bb720c377b3ef949d0\transformed\jetified-lifecycle-process-2.7.0\AndroidManifest.xml:24:9-32:20
+155            android:name="androidx.startup.InitializationProvider"
+155-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\mahir\.gradle\caches\8.8\transforms\4cb785211ebdc8bb720c377b3ef949d0\transformed\jetified-lifecycle-process-2.7.0\AndroidManifest.xml:25:13-67
+156            android:authorities="com.example.loczy.androidx-startup"
+156-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\mahir\.gradle\caches\8.8\transforms\4cb785211ebdc8bb720c377b3ef949d0\transformed\jetified-lifecycle-process-2.7.0\AndroidManifest.xml:26:13-68
+157            android:exported="false" >
+157-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\mahir\.gradle\caches\8.8\transforms\4cb785211ebdc8bb720c377b3ef949d0\transformed\jetified-lifecycle-process-2.7.0\AndroidManifest.xml:27:13-37
+158            <meta-data
+158-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\mahir\.gradle\caches\8.8\transforms\4cb785211ebdc8bb720c377b3ef949d0\transformed\jetified-lifecycle-process-2.7.0\AndroidManifest.xml:29:13-31:52
+159                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+159-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\mahir\.gradle\caches\8.8\transforms\4cb785211ebdc8bb720c377b3ef949d0\transformed\jetified-lifecycle-process-2.7.0\AndroidManifest.xml:30:17-78
+160                android:value="androidx.startup" />
+160-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\mahir\.gradle\caches\8.8\transforms\4cb785211ebdc8bb720c377b3ef949d0\transformed\jetified-lifecycle-process-2.7.0\AndroidManifest.xml:31:17-49
+161            <meta-data
+161-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:29:13-31:52
+162                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+162-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:30:17-85
+163                android:value="androidx.startup" />
+163-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:31:17-49
+164        </provider>
+165
+166        <receiver
+166-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:34:9-52:20
+167            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+167-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:35:13-76
+168            android:directBootAware="false"
+168-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:36:13-44
+169            android:enabled="true"
+169-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:37:13-35
+170            android:exported="true"
+170-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:38:13-36
+171            android:permission="android.permission.DUMP" >
+171-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:39:13-57
+172            <intent-filter>
+172-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:40:13-42:29
+173                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+173-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:41:17-91
+173-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:41:25-88
+174            </intent-filter>
+175            <intent-filter>
+175-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:43:13-45:29
+176                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+176-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:44:17-85
+176-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:44:25-82
+177            </intent-filter>
+178            <intent-filter>
+178-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:46:13-48:29
+179                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+179-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:47:17-88
+179-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:47:25-85
+180            </intent-filter>
+181            <intent-filter>
+181-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:49:13-51:29
+182                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+182-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:50:17-95
+182-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:50:25-92
+183            </intent-filter>
+184        </receiver>
+185    </application>
+186
+187</manifest>

@@ -1,0 +1,58 @@
+com.example.loczy.app-transition-1.4.1-0 C:\Users\mahir\.gradle\caches\8.8\transforms\0c2b09fea253cc1f34fa4b8aaaca1252\transformed\transition-1.4.1\res
+com.example.loczy.app-jetified-lifecycle-runtime-ktx-2.7.0-1 C:\Users\mahir\.gradle\caches\8.8\transforms\13799193d99e3e49e206cd233d61b0f5\transformed\jetified-lifecycle-runtime-ktx-2.7.0\res
+com.example.loczy.app-coordinatorlayout-1.0.0-2 C:\Users\mahir\.gradle\caches\8.8\transforms\14435cc0533e0b2e7fbfae102e87d8be\transformed\coordinatorlayout-1.0.0\res
+com.example.loczy.app-slidingpanelayout-1.2.0-3 C:\Users\mahir\.gradle\caches\8.8\transforms\194801fe7b4b1301fcb8b48b16789af1\transformed\slidingpanelayout-1.2.0\res
+com.example.loczy.app-lifecycle-runtime-2.7.0-4 C:\Users\mahir\.gradle\caches\8.8\transforms\36becced31b263c2a0d2ffe2b8148343\transformed\lifecycle-runtime-2.7.0\res
+com.example.loczy.app-jetified-lifecycle-livedata-core-ktx-2.7.0-5 C:\Users\mahir\.gradle\caches\8.8\transforms\3a06415786e0b8484263d5502ca32e1f\transformed\jetified-lifecycle-livedata-core-ktx-2.7.0\res
+com.example.loczy.app-jetified-play-services-base-18.3.0-6 C:\Users\mahir\.gradle\caches\8.8\transforms\3ec9eea70bfac61c8df43fca11463746\transformed\jetified-play-services-base-18.3.0\res
+com.example.loczy.app-appcompat-1.1.0-7 C:\Users\mahir\.gradle\caches\8.8\transforms\419e760d93f09d15dc1e2b2362c0187e\transformed\appcompat-1.1.0\res
+com.example.loczy.app-recyclerview-1.0.0-8 C:\Users\mahir\.gradle\caches\8.8\transforms\447b15464cc8f0010b4e52032252be02\transformed\recyclerview-1.0.0\res
+com.example.loczy.app-jetified-activity-1.9.3-9 C:\Users\mahir\.gradle\caches\8.8\transforms\45a74eef8568149c79647dafc9743ac0\transformed\jetified-activity-1.9.3\res
+com.example.loczy.app-jetified-datastore-preferences-release-10 C:\Users\mahir\.gradle\caches\8.8\transforms\492ef2658f9c3c9f22aa1b5fa801466b\transformed\jetified-datastore-preferences-release\res
+com.example.loczy.app-jetified-startup-runtime-1.1.1-11 C:\Users\mahir\.gradle\caches\8.8\transforms\49386acd7f8b6f3b96a8d765fc84580e\transformed\jetified-startup-runtime-1.1.1\res
+com.example.loczy.app-jetified-lifecycle-process-2.7.0-12 C:\Users\mahir\.gradle\caches\8.8\transforms\4cb785211ebdc8bb720c377b3ef949d0\transformed\jetified-lifecycle-process-2.7.0\res
+com.example.loczy.app-fragment-1.7.1-13 C:\Users\mahir\.gradle\caches\8.8\transforms\4e4a94d8743ced6e80d46235b855c083\transformed\fragment-1.7.1\res
+com.example.loczy.app-jetified-core-1.0.0-14 C:\Users\mahir\.gradle\caches\8.8\transforms\52b8e4d7e5c84e663d323877f10d6400\transformed\jetified-core-1.0.0\res
+com.example.loczy.app-jetified-core-viewtree-1.0.0-15 C:\Users\mahir\.gradle\caches\8.8\transforms\5f505609fc74aee7951bab1cc486b8d2\transformed\jetified-core-viewtree-1.0.0\res
+com.example.loczy.app-jetified-window-java-1.2.0-16 C:\Users\mahir\.gradle\caches\8.8\transforms\6584d60df76a1378a459288cfe4ae9b3\transformed\jetified-window-java-1.2.0\res
+com.example.loczy.app-lifecycle-livedata-core-2.7.0-17 C:\Users\mahir\.gradle\caches\8.8\transforms\686c3a22962f56d2c2f59e1d483a2d73\transformed\lifecycle-livedata-core-2.7.0\res
+com.example.loczy.app-jetified-lifecycle-viewmodel-ktx-2.7.0-18 C:\Users\mahir\.gradle\caches\8.8\transforms\68c09f5c3c2c1a98916043482ec80f95\transformed\jetified-lifecycle-viewmodel-ktx-2.7.0\res
+com.example.loczy.app-lifecycle-livedata-2.7.0-19 C:\Users\mahir\.gradle\caches\8.8\transforms\701104e83610d3d8fc9880bbf9c5e03f\transformed\lifecycle-livedata-2.7.0\res
+com.example.loczy.app-jetified-savedstate-1.2.1-20 C:\Users\mahir\.gradle\caches\8.8\transforms\739cde57aa1dad0279e9cc8e811f8c08\transformed\jetified-savedstate-1.2.1\res
+com.example.loczy.app-jetified-media3-exoplayer-1.4.1-21 C:\Users\mahir\.gradle\caches\8.8\transforms\9721bb71b85d77c193101dc05dc81fd7\transformed\jetified-media3-exoplayer-1.4.1\res
+com.example.loczy.app-jetified-annotation-experimental-1.4.1-22 C:\Users\mahir\.gradle\caches\8.8\transforms\99de5756ab35a1d0896e695da959552e\transformed\jetified-annotation-experimental-1.4.1\res
+com.example.loczy.app-jetified-profileinstaller-1.3.1-23 C:\Users\mahir\.gradle\caches\8.8\transforms\9aec11272ccfe10bce9ef199040eaf8b\transformed\jetified-profileinstaller-1.3.1\res
+com.example.loczy.app-jetified-play-services-basement-18.3.0-24 C:\Users\mahir\.gradle\caches\8.8\transforms\a0024bf5c0a619e5e82ba657a1a2a710\transformed\jetified-play-services-basement-18.3.0\res
+com.example.loczy.app-preference-1.2.1-25 C:\Users\mahir\.gradle\caches\8.8\transforms\a8be8413f4cc9ac2af7a1e0b1f3b0eec\transformed\preference-1.2.1\res
+com.example.loczy.app-jetified-datastore-release-26 C:\Users\mahir\.gradle\caches\8.8\transforms\ad69408407f2ac23679f8352794e4d9d\transformed\jetified-datastore-release\res
+com.example.loczy.app-jetified-fragment-ktx-1.7.1-27 C:\Users\mahir\.gradle\caches\8.8\transforms\ae33e09bfd70d846aa5e52617f619f45\transformed\jetified-fragment-ktx-1.7.1\res
+com.example.loczy.app-jetified-savedstate-ktx-1.2.1-28 C:\Users\mahir\.gradle\caches\8.8\transforms\b75a370b29a15aadcd0f5a988b47dfc3\transformed\jetified-savedstate-ktx-1.2.1\res
+com.example.loczy.app-jetified-appcompat-resources-1.1.0-29 C:\Users\mahir\.gradle\caches\8.8\transforms\c062e84ef264317e94cd257ecca5df3a\transformed\jetified-appcompat-resources-1.1.0\res
+com.example.loczy.app-media-1.1.0-30 C:\Users\mahir\.gradle\caches\8.8\transforms\c3d49f29fee5f3e547890e45df393c84\transformed\media-1.1.0\res
+com.example.loczy.app-core-1.16.0-31 C:\Users\mahir\.gradle\caches\8.8\transforms\ca81867cac16ff4f476c0e27e55e9c12\transformed\core-1.16.0\res
+com.example.loczy.app-jetified-window-1.2.0-32 C:\Users\mahir\.gradle\caches\8.8\transforms\cbc7d75836d5409f940b19004c2fcd65\transformed\jetified-window-1.2.0\res
+com.example.loczy.app-jetified-lifecycle-viewmodel-savedstate-2.7.0-33 C:\Users\mahir\.gradle\caches\8.8\transforms\ccbd31b8f011588c41fe952355235866\transformed\jetified-lifecycle-viewmodel-savedstate-2.7.0\res
+com.example.loczy.app-core-runtime-2.2.0-34 C:\Users\mahir\.gradle\caches\8.8\transforms\dc263e106d5060b7f9e503bab786c98a\transformed\core-runtime-2.2.0\res
+com.example.loczy.app-jetified-core-ktx-1.16.0-35 C:\Users\mahir\.gradle\caches\8.8\transforms\e0bd18de5e4e97b8cfe21c3a0521e416\transformed\jetified-core-ktx-1.16.0\res
+com.example.loczy.app-jetified-activity-ktx-1.9.3-36 C:\Users\mahir\.gradle\caches\8.8\transforms\e1cea963ab6c621a27c983abeb347146\transformed\jetified-activity-ktx-1.9.3\res
+com.example.loczy.app-jetified-tracing-1.2.0-37 C:\Users\mahir\.gradle\caches\8.8\transforms\ec538c887db910b28b474fa4a322a982\transformed\jetified-tracing-1.2.0\res
+com.example.loczy.app-jetified-datastore-core-release-38 C:\Users\mahir\.gradle\caches\8.8\transforms\ee95acb3ad62ab2e1167b7732b94d0c8\transformed\jetified-datastore-core-release\res
+com.example.loczy.app-lifecycle-viewmodel-2.7.0-39 C:\Users\mahir\.gradle\caches\8.8\transforms\f930c418be3c2c0e8a3a0c77b077c62f\transformed\lifecycle-viewmodel-2.7.0\res
+com.example.loczy.app-main-40 C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\main\res
+com.example.loczy.app-release-41 C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\android\app\src\release\res
+com.example.loczy.app-pngs-42 C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\app\generated\res\pngs\release
+com.example.loczy.app-resValues-43 C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\app\generated\res\resValues\release
+com.example.loczy.app-packageReleaseResources-44 C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\app\intermediates\incremental\release\packageReleaseResources\merged.dir
+com.example.loczy.app-packageReleaseResources-45 C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\app\intermediates\incremental\release\packageReleaseResources\stripped.dir
+com.example.loczy.app-merged-not-compiled-resources-46 C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\app\intermediates\merged-not-compiled-resources\release
+com.example.loczy.app-release-47 C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\app\intermediates\merged_res\release\mergeReleaseResources
+com.example.loczy.app-release-48 C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\packaged_res\release\packageReleaseResources
+com.example.loczy.app-release-49 C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_local_notifications\intermediates\packaged_res\release\packageReleaseResources
+com.example.loczy.app-release-50 C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_plugin_android_lifecycle\intermediates\packaged_res\release\packageReleaseResources
+com.example.loczy.app-release-51 C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_video_info\intermediates\packaged_res\release\packageReleaseResources
+com.example.loczy.app-release-52 C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\geocoding_android\intermediates\packaged_res\release\packageReleaseResources
+com.example.loczy.app-release-53 C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\geolocator_android\intermediates\packaged_res\release\packageReleaseResources
+com.example.loczy.app-release-54 C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\image_picker_android\intermediates\packaged_res\release\packageReleaseResources
+com.example.loczy.app-release-55 C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\path_provider_android\intermediates\packaged_res\release\packageReleaseResources
+com.example.loczy.app-release-56 C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\shared_preferences_android\intermediates\packaged_res\release\packageReleaseResources
+com.example.loczy.app-release-57 C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\video_player_android\intermediates\packaged_res\release\packageReleaseResources

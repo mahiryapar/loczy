@@ -1,0 +1,32 @@
+<variant
+    name="release"
+    package="id.flutter.flutter_background_service"
+    minSdkVersion="16"
+    targetSdkVersion="16"
+    mergedManifest="C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml"
+    manifestMergeReport="C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\outputs\logs\manifest-merger-release-report.txt"
+    proguardFiles="C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\default_proguard_files\global\proguard-android.txt-8.6.0"
+    consumerProguardFiles="proguard-rules.pro"
+    partialResultsDir="C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\lint_partial_results\release\lintAnalyzeRelease\out">
+  <buildFeatures
+      namespacing="REQUIRED"/>
+  <sourceProviders>
+    <sourceProvider
+        manifests="src\main\AndroidManifest.xml"
+        javaDirectories="src\main\java;src\release\java;src\main\kotlin;src\release\kotlin"
+        resDirectories="src\main\res;src\release\res"
+        assetsDirectories="src\main\assets;src\release\assets"/>
+  </sourceProviders>
+  <testSourceProviders>
+  </testSourceProviders>
+  <testFixturesSourceProviders>
+  </testFixturesSourceProviders>
+  <artifact
+      classOutputs="C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\javac\release\compileReleaseJavaWithJavac\classes;C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\intermediates\compile_r_class_jar\release\generateReleaseRFile\R.jar"
+      type="MAIN"
+      applicationId="id.flutter.flutter_background_service"
+      generatedSourceFolders="C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\generated\ap_generated_sources\release\out"
+      generatedResourceFolders="C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\flutter_background_service_android\generated\res\resValues\release"
+      desugaredMethodsFiles="C:\Users\mahir\.gradle\caches\8.8\transforms\a03488b5795a50645837b5c67822ea32\transformed\D8BackportedDesugaredMethods.txt">
+  </artifact>
+</variant>

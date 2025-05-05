@@ -1,0 +1,8 @@
+{
+    "api_url": "http://20.199.91.63/loczyAPI",  
+    "bearer_token": "aK4d24Cp945Jhg2chjx23",
+    "default_pp": "http://20.199.91.63/loczyAPI/uploads/default_pp.jpg",
+    "vm_ip":  "20.199.91.63",
+    "google_api_key": "AIzaSyAaUXCYhXR11y9M7f9jFVTXvVBhI0mp0sw"
+}
+  

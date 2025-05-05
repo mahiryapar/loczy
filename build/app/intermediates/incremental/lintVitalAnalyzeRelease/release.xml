@@ -1,0 +1,38 @@
+<variant
+    name="release"
+    package="com.example.loczy"
+    minSdkVersion="21"
+    targetSdkVersion="35"
+    shrinking="true"
+    mergedManifest="C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\app\intermediates\merged_manifest\release\processReleaseMainManifest\AndroidManifest.xml"
+    proguardFiles="C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\app\intermediates\default_proguard_files\global\proguard-android-optimize.txt-8.6.0;C:\src\flutter\packages\flutter_tools\gradle\flutter_proguard_rules.pro;proguard-rules.pro"
+    partialResultsDir="C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\app\intermediates\lint_vital_partial_results\release\lintVitalAnalyzeRelease\out"
+    desugaredMethodsFiles="C:\Users\mahir\.gradle\caches\8.8\transforms\8d75d7b65cab4428d0e6183961954c12\transformed\desugar_jdk_libs_configuration-2.1.4-desugar-lint.txt;C:\Users\mahir\.gradle\caches\8.8\transforms\a74addb0d68d38ceacefcd748502f4d9\transformed\D8BackportedDesugaredMethods.txt">
+  <buildFeatures
+      coreLibraryDesugaring="true"
+      namespacing="REQUIRED"/>
+  <sourceProviders>
+    <sourceProvider
+        manifests="src\main\AndroidManifest.xml"
+        javaDirectories="src\main\java;src\release\java;src\main\kotlin;src\release\kotlin"
+        resDirectories="src\main\res;src\release\res"
+        assetsDirectories="src\main\assets;src\release\assets"/>
+  </sourceProviders>
+  <testSourceProviders>
+  </testSourceProviders>
+  <testFixturesSourceProviders>
+  </testFixturesSourceProviders>
+  <manifestPlaceholders>
+    <placeholder
+        name="applicationName"
+        value="android.app.Application" />
+  </manifestPlaceholders>
+  <artifact
+      classOutputs="C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\app\intermediates\javac\release\compileReleaseJavaWithJavac\classes;C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\app\tmp\kotlin-classes\release;C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\app\kotlinToolingMetadata;C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\app\intermediates\compile_and_runtime_not_namespaced_r_class_jar\release\processReleaseResources\R.jar"
+      type="MAIN"
+      applicationId="com.example.loczy"
+      generatedSourceFolders="C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\app\generated\ap_generated_sources\release\out"
+      generatedResourceFolders="C:\Users\mahir\OneDrive\Desktop\Mahir\PC Muh\Flutter\loczy\loczy\build\app\generated\res\resValues\release"
+      desugaredMethodsFiles="C:\Users\mahir\.gradle\caches\8.8\transforms\8d75d7b65cab4428d0e6183961954c12\transformed\desugar_jdk_libs_configuration-2.1.4-desugar-lint.txt;C:\Users\mahir\.gradle\caches\8.8\transforms\a74addb0d68d38ceacefcd748502f4d9\transformed\D8BackportedDesugaredMethods.txt">
+  </artifact>
+</variant>

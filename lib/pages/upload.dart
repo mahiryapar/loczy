@@ -5,6 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:loczy/config_getter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:geolocator/geolocator.dart'; // Import geolocator
+import 'package:geocoding/geocoding.dart'; // Import geocoding
 
 // Enum to define the upload type
 enum UploadType { post, story }
@@ -18,6 +20,7 @@ class _UploadPageState extends State<UploadPage> {
   XFile? _mediaFile;
   XFile? _thumbnailFile; // Only used for posts
   final TextEditingController _descriptionController = TextEditingController(); // Only used for posts
+  final TextEditingController _locationNameController = TextEditingController(); // For location name
   String _privacy = 'public'; // Only used for posts
   bool _isUploading = false;
   String _errorMessage = '';
@@ -26,6 +29,9 @@ class _UploadPageState extends State<UploadPage> {
   String _userNickname = '';
   int _portreMiValue = 2; // Only used for posts (2: image/not set, 0: landscape video, 1: portrait video)
   UploadType _selectedUploadType = UploadType.post; // Default to post
+  double? _latitude; // Store latitude
+  double? _longitude; // Store longitude
+  bool _isFetchingLocation = false; // To show loading indicator for location
 
   @override
   void initState() {
@@ -140,6 +146,86 @@ class _UploadPageState extends State<UploadPage> {
     }
   }
 
+  // --- New Function: Get Current Location ---
+  Future<void> _getCurrentLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    setState(() {
+      _isFetchingLocation = true;
+      _errorMessage = ''; // Clear previous errors
+    });
+
+    try {
+      // Test if location services are enabled.
+      serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception('Konum servisleri kapalı.');
+      }
+
+      permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw Exception('Konum izinleri reddedildi.');
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        // Permissions are denied forever, handle appropriately.
+        throw Exception('Konum izinleri kalıcı olarak reddedildi, ayarlardan izin verin.');
+      }
+
+      // When we reach here, permissions are granted and we can
+      // continue accessing the position of the device.
+      Position position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.medium); // Medium accuracy is usually sufficient
+
+      setState(() {
+        _latitude = position.latitude;
+        _longitude = position.longitude;
+      });
+
+      // Get placemark from coordinates
+      try {
+        List<Placemark> placemarks = await placemarkFromCoordinates(
+            position.latitude, position.longitude);
+        if (placemarks.isNotEmpty) {
+          Placemark place = placemarks[0];
+          // Construct a user-friendly location name
+          String name = [
+            place.street,
+            place.subLocality,
+            place.locality,
+            place.administrativeArea,
+            place.country
+          ].where((s) => s != null && s.isNotEmpty).join(', ');
+          _locationNameController.text = name.isEmpty ? 'Konum Alındı (${_latitude?.toStringAsFixed(4)}, ${_longitude?.toStringAsFixed(4)})' : name;
+        } else {
+           _locationNameController.text = 'Konum Alındı (${_latitude?.toStringAsFixed(4)}, ${_longitude?.toStringAsFixed(4)})';
+        }
+      } catch (e) {
+        print("Reverse geocoding error: $e");
+        // Set text even if geocoding fails
+        _locationNameController.text = 'Konum Alındı (${_latitude?.toStringAsFixed(4)}, ${_longitude?.toStringAsFixed(4)})';
+      }
+
+    } catch (e) {
+      print("Location error: $e");
+      setState(() {
+        _errorMessage = 'Konum alınamadı: $e';
+        _latitude = null;
+        _longitude = null;
+        _locationNameController.clear(); // Clear name on error
+      });
+    } finally {
+      setState(() {
+        _isFetchingLocation = false;
+      });
+    }
+  }
+  // --- End of New Function ---
+
   // Renamed original submit function
   Future<void> _submitPost() async {
     if (_mediaFile == null) {
@@ -158,6 +244,10 @@ class _UploadPageState extends State<UploadPage> {
       setState(() => _errorMessage = 'Kullanıcı bilgileri yüklenemedi, lütfen tekrar deneyin.');
       return;
     }
+    if (_locationNameController.text.trim().isEmpty || _latitude == null || _longitude == null) {
+       setState(() => _errorMessage = 'Lütfen bir konum ekleyin veya girin.');
+       return;
+    }
 
     setState(() {
       _isUploading = true;
@@ -167,6 +257,7 @@ class _UploadPageState extends State<UploadPage> {
     String? mediaUrl;
     String? thumbnailUrl;
     String mediaType = 'image'; // Default to image
+    String locationJson = ''; // Variable for location JSON
 
     if (_mediaFile != null) {
       final lowerCasePath = _mediaFile!.path.toLowerCase();
@@ -183,6 +274,22 @@ class _UploadPageState extends State<UploadPage> {
        return;
     }
 
+    // --- Create Location JSON ---
+    if (_latitude != null && _longitude != null) {
+      locationJson = jsonEncode({
+        'name': _locationNameController.text.trim(),
+        'latitude': _latitude,
+        'longitude': _longitude,
+      });
+    } else {
+      // Handle case where location is mandatory but not set (already checked above, but good practice)
+      setState(() {
+         _errorMessage = 'Konum bilgisi eksik.';
+         _isUploading = false;
+      });
+      return;
+    }
+    // --- End of Location JSON ---
 
     try {
       // Upload thumbnail first for post
@@ -215,7 +322,7 @@ class _UploadPageState extends State<UploadPage> {
           'video_foto_url': mediaUrl,
           'thumbnail_url': thumbnailUrl, // Included for post
           'gizlilik_turu': _privacy,
-          'konum': 'Konum Bilgisi Eklenecek', // Included for post
+          'konum': locationJson, // Send the location JSON string
           'media_type': mediaType,
           'portre_mi': _portreMiValue, // Included for post
           // Add Turkey time offset to ensure server stores with correct timezone context
@@ -233,6 +340,9 @@ class _UploadPageState extends State<UploadPage> {
             _mediaFile = null;
             _thumbnailFile = null;
             _descriptionController.clear();
+            _locationNameController.clear(); // Clear location name
+            _latitude = null; // Clear latitude
+            _longitude = null; // Clear longitude
             _portreMiValue = 2; // Reset portrait value
             _errorMessage = '';
           });
@@ -331,6 +441,7 @@ class _UploadPageState extends State<UploadPage> {
   @override
   void dispose() {
     _descriptionController.dispose();
+    _locationNameController.dispose(); // Dispose location controller
     super.dispose();
   }
 
@@ -363,6 +474,9 @@ class _UploadPageState extends State<UploadPage> {
                   _mediaFile = null;
                   _thumbnailFile = null;
                   _descriptionController.clear();
+                  _locationNameController.clear(); // Reset location
+                  _latitude = null;
+                  _longitude = null;
                   _portreMiValue = 2;
                   _errorMessage = '';
                 });
@@ -498,17 +612,40 @@ class _UploadPageState extends State<UploadPage> {
             ),
             SizedBox(height: 20),
 
-            ListTile(
-              leading: Icon(Icons.location_on),
-              title: Text('Konum Ekle'),
-              subtitle: Text('Yakında eklenecek...'),
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Konum özelliği yakında eklenecektir.')),
-                );
-              },
+            // --- Location Section ---
+            Text('Konum', style: Theme.of(context).textTheme.titleMedium),
+            SizedBox(height: 8),
+            TextField(
+              controller: _locationNameController,
+              decoration: InputDecoration(
+                labelText: 'Konum Adı',
+                hintText: 'Konumu almak için butona basın veya manuel girin',
+                border: OutlineInputBorder(),
+                suffixIcon: _isFetchingLocation
+                    ? Padding(
+                        padding: const EdgeInsets.all(10.0),
+                        child: SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2)),
+                      )
+                    : IconButton(
+                        icon: Icon(Icons.my_location),
+                        tooltip: 'Mevcut Konumu Al',
+                        onPressed: _getCurrentLocation,
+                      ),
+              ),
             ),
-            SizedBox(height: 10),
+            if (_latitude != null && _longitude != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4.0),
+                child: Text(
+                  'Koordinatlar: ${_latitude?.toStringAsFixed(5)}, ${_longitude?.toStringAsFixed(5)}',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                ),
+              ),
+            SizedBox(height: 20),
+            // --- End of Location Section ---
 
             Text('Gizlilik: Bu gönderi "${_privacy == 'private' ? 'Gizli' : 'Herkese Açık'}" olarak paylaşılacak.', style: TextStyle(color: Colors.grey[700])),
             SizedBox(height: 20),

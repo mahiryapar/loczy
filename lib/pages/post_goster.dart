@@ -115,11 +115,30 @@ class _PostGosterPageState extends State<PostGosterPage> {
 
   // Removed _getNickname function
 
+  // Helper function to parse location JSON and get name
+  String _getLocationName(String? locationJson) {
+    if (locationJson == null || locationJson.isEmpty) {
+      return 'Konum Yok';
+    }
+    try {
+      final decoded = json.decode(locationJson);
+      if (decoded is Map<String, dynamic> && decoded.containsKey('name')) {
+        return decoded['name'] ?? 'Konum Yok';
+      }
+    } catch (e) {
+      print("Error parsing location JSON: $e");
+      // Return the original string if it's not valid JSON or doesn't have 'name'
+      return locationJson;
+    }
+    return 'Konum Yok'; // Default fallback
+  }
+
   Widget _buildPostContent(
       BuildContext context, Map<String, dynamic> postDetails) {
     final postUrl = postDetails['video_foto_url'];
     final isVideo = postUrl.endsWith('.mp4');
     final int portreMi = postDetails['portre_mi'] ?? 0; // Get portre_mi value
+    final String locationName = _getLocationName(postDetails['konum']); // Parse location
 
     return SingleChildScrollView(
       child: Column(
@@ -131,10 +150,20 @@ class _PostGosterPageState extends State<PostGosterPage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  postDetails['konum'] ?? 'Konum Yok',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                // --- Updated Location Display ---
+                Expanded( // Allow location to take available space and scroll
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Text(
+                      locationName, // Use parsed name
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      softWrap: false, // Prevent wrapping
+                      overflow: TextOverflow.fade, // Indicate overflow
+                    ),
+                  ),
                 ),
+                // --- End of Update ---
+                SizedBox(width: 8), // Add some space between location and date
                 Text(
                   '${DateTime.parse(postDetails['paylasilma_tarihi']['date']).add(Duration(hours: 3)).toString().split(' ')[0].split('-').reversed.join('-')} ${DateTime.parse(postDetails['paylasilma_tarihi']['date']).add(Duration(hours: 3)).toString().split(' ')[1].substring(0, 5)}',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),

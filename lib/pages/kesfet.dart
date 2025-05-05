@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:loczy/config_getter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'kullanici_goster.dart';
 import 'post_goster.dart';
+import 'package:geolocator/geolocator.dart'; // Import geolocator
 
 class ExplorePage extends StatefulWidget {
   @override
@@ -19,17 +21,21 @@ class _ExplorePageState extends State<ExplorePage> {
   
   // Post gridi için değişkenler
   bool _isLoadingPosts = true;
-  List<Map<String, dynamic>> _posts = [];
+  List<Map<String, dynamic>> _posts = []; // This will hold the filtered posts
 
   // API bilgileri
   final String apiUrl = ConfigLoader.apiUrl;
   final String bearerToken = ConfigLoader.bearerToken;
 
+  // User ID from SharedPreferences
+  int? currentUserId;
+
   @override
   void initState() {
     super.initState();
+    print('KESFET DEBUG: initState called');
+    _loadUserId(); // Load user ID from SharedPreferences
     _searchController.addListener(_onSearchChanged);
-    _fetchPosts();
   }
 
   @override
@@ -88,10 +94,42 @@ class _ExplorePageState extends State<ExplorePage> {
     }
   }
 
-  // Tüm postları getir
-  Future<void> _fetchPosts() async {
-    setState(() => _isLoadingPosts = true);
+  // Load user ID from SharedPreferences
+  Future<void> _loadUserId() async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getInt('userId');
+      
+      print('KESFET DEBUG: Loaded userId from SharedPreferences: $userId');
+      
+      if (userId != null) {
+        setState(() {
+          currentUserId = userId;
+        });
+      } else {
+        print('KESFET DEBUG: WARNING - userId not found in SharedPreferences');
+      }
+      
+      // Now fetch posts after we have the user ID
+      _fetchPosts();
+    } catch (e) {
+      print('KESFET DEBUG: Error loading userId from SharedPreferences: $e');
+      // Fetch posts anyway, but they won't be filtered by user
+      _fetchPosts();
+    }
+  }
+
+  // Tüm postları getir ve filtrele
+  Future<void> _fetchPosts() async {
+    print('KESFET DEBUG: _fetchPosts started');
+    setState(() => _isLoadingPosts = true);
+    List<Map<String, dynamic>> allPosts = [];
+    List<Map<String, dynamic>> myPosts = [];
+    List<Map<String, dynamic>> otherPosts = [];
+    List<Map<String, dynamic>> filteredPosts = [];
+
+    try {
+      print('KESFET DEBUG: Fetching posts from API: $apiUrl/routers/posts.php');
       final response = await http.get(
         Uri.parse('$apiUrl/routers/posts.php'),
         headers: {
@@ -100,25 +138,136 @@ class _ExplorePageState extends State<ExplorePage> {
         },
       );
 
+      print('KESFET DEBUG: API response status code: ${response.statusCode}');
+      
       if (response.statusCode == 200) {
         final List<dynamic> postsData = jsonDecode(response.body);
+        print('KESFET DEBUG: Retrieved ${postsData.length} posts');
+        
+        // Parse all posts and extract location data
+        allPosts = postsData.map<Map<String, dynamic>>((post) {
+          double? latitude;
+          double? longitude;
+          String? locationName;
+          String? locationJsonString = post['konum']; // Get location JSON string
+          
+          print('KESFET DEBUG: Processing post ${post['id']} with location data: $locationJsonString');
+          
+          if (locationJsonString != null && locationJsonString.isNotEmpty) {
+            try {
+              Map<String, dynamic> locationData = jsonDecode(locationJsonString);
+              locationName = locationData['name'];
+              latitude = locationData['latitude']?.toDouble();
+              longitude = locationData['longitude']?.toDouble();
+              
+              print('KESFET DEBUG: Successfully parsed location for post ${post['id']}: $locationName, lat: $latitude, lng: $longitude');
+            } catch (e) {
+              print('KESFET DEBUG: Error decoding location JSON for post ${post['id']}: $e');
+              // Try to print the problematic JSON for debugging
+              print('KESFET DEBUG: Raw location data was: $locationJsonString');
+              // Keep latitude/longitude as null if decoding fails
+            }
+          } else {
+            print('KESFET DEBUG: Post ${post['id']} has no location data');
+          }
+
+          return {
+            'id': post['id'],
+            'user_id': post['atan_id'], // Assuming the API returns user_id
+            'thumbnail_url': post['thumbnail_url'],
+            'latitude': latitude,
+            'longitude': longitude,
+            'location_name': locationName,
+          };
+        }).toList();
+        print('KESFET DEBUG: currentUserId: $currentUserId');
+        // Separate user's posts from others
+        for (var post in allPosts) {
+          if (currentUserId != null && post['user_id'] == currentUserId) {
+            myPosts.add(post);
+            print('KESFET DEBUG: Found user\'s post ${post['id']} (userId: $currentUserId)');
+          } else {
+            otherPosts.add(post);
+          }
+        }
+        
+        print('KESFET DEBUG: Found ${myPosts.length} user posts and ${otherPosts.length} other user posts');
+
+        // Filter other posts based on distance to user's posts
+        for (var otherPost in otherPosts) {
+          if (otherPost['latitude'] == null || otherPost['longitude'] == null) {
+            print('KESFET DEBUG: Skipping post ${otherPost['id']} - missing location data');
+            continue; // Skip posts without location
+          }
+
+          bool shouldInclude = false;
+          for (var myPost in myPosts) {
+            if (myPost['latitude'] == null || myPost['longitude'] == null) {
+              print('KESFET DEBUG: User post ${myPost['id']} has no location, skipping comparison');
+              continue; // Skip user's posts without location
+            }
+
+            try {
+              double distance = Geolocator.distanceBetween(
+                myPost['latitude']!,
+                myPost['longitude']!,
+                otherPost['latitude']!,
+                otherPost['longitude']!,
+              );
+              
+              print('KESFET DEBUG: Distance between user post ${myPost['id']} and post ${otherPost['id']} is ${distance.toStringAsFixed(2)} meters');
+
+              if (distance < 1000) { // Check if distance is less than 1000 meters
+                print('KESFET DEBUG: Including post ${otherPost['id']} as it\'s within 1000 meters (${distance.toStringAsFixed(2)}m) of user post ${myPost['id']}');
+                shouldInclude = true;
+                break; // Found a close post, no need to check others
+              }
+            } catch (e) {
+              print('KESFET DEBUG: Error calculating distance: $e');
+            }
+          }
+
+          if (shouldInclude) {
+            filteredPosts.add(otherPost);
+          } else {
+            print('KESFET DEBUG: Post ${otherPost['id']} not included in explore feed - too far from user\'s posts');
+          }
+        }
+        
+        print('KESFET DEBUG: Final filtered posts count: ${filteredPosts.length}');
+
+        // If we have no user posts with location or no other posts passed the filter,
+        // let's include some posts anyway to avoid empty explore feed
+        if (filteredPosts.isEmpty) {
+          print('KESFET DEBUG: No posts match location criteria. Adding some posts to avoid empty feed.');
+          // Add up to 10 random posts from otherPosts
+          int count = 0;
+          for (var post in otherPosts) {
+            filteredPosts.add(post);
+            count++;
+            if (count >= 10) break;
+          }
+        }
+
         if (mounted) {
           setState(() {
-            _posts = postsData.map<Map<String, dynamic>>((post) => {
-              'id': post['id'],
-              'thumbnail_url': post['thumbnail_url'] ?? post['video_foto_url'] ?? 'https://via.placeholder.com/150',
-            }).toList();
+            _posts = filteredPosts; // Update state with filtered posts
             _isLoadingPosts = false;
           });
+          print('KESFET DEBUG: State updated with ${_posts.length} posts');
         }
       } else {
-        setState(() => _isLoadingPosts = false);
-        throw Exception('Postlar yüklenemedi');
+        if (mounted) {
+          setState(() => _isLoadingPosts = false);
+        }
+        print('KESFET DEBUG: Failed to load posts. Status code: ${response.statusCode}');
+        print('KESFET DEBUG: Response body: ${response.body}');
+        throw Exception('Postlar yüklenemedi: ${response.statusCode}');
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoadingPosts = false);
-        print('Post getirme hatası: $e');
+        print('KESFET DEBUG: Post getirme/filtreleme hatası: $e');
       }
     }
   }
@@ -161,13 +310,16 @@ class _ExplorePageState extends State<ExplorePage> {
   // Post gridini oluştur
   Widget _buildPostsGrid() {
     if (_isLoadingPosts) {
+      print('KESFET DEBUG: Showing loading spinner for posts');
       return Center(child: CircularProgressIndicator(color: const Color(0xFFD06100)));
     }
 
     if (_posts.isEmpty) {
-      return Center(child: Text('Henüz post bulunmuyor.'));
+      print('KESFET DEBUG: No posts to display');
+      return Center(child: Text('Yakınında keşfedilecek post bulunmuyor.'));
     }
 
+    print('KESFET DEBUG: Building grid with ${_posts.length} posts');
     return GridView.builder(
       shrinkWrap: true,
       physics: NeverScrollableScrollPhysics(),
@@ -178,24 +330,53 @@ class _ExplorePageState extends State<ExplorePage> {
       ),
       itemCount: _posts.length,
       itemBuilder: (context, index) {
+        final post = _posts[index];
+        String locationInfo = "";
+        if (post['location_name'] != null) {
+          locationInfo = " at ${post['location_name']}";
+        }
+        
         return GestureDetector(
           onTap: () {
+            print('KESFET DEBUG: Tapped on post ${post['id']}$locationInfo');
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => PostGosterPage(postId: _posts[index]['id']),
+                builder: (context) => PostGosterPage(postId: post['id']),
               ),
             );
           },
-          child: Image.network(
-            _posts[index]['thumbnail_url'],
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                color: Colors.grey[300],
-                child: Icon(Icons.image_not_supported, color: Colors.red),
-              );
-            },
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.network(
+                post['thumbnail_url'],
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  print('KESFET DEBUG: Error loading image for post ${post['id']}: $error');
+                  return Container(
+                    color: Colors.grey[300],
+                    child: Icon(Icons.image_not_supported, color: Colors.red),
+                  );
+                },
+              ),
+              if (post['location_name'] != null)
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    color: Colors.black.withOpacity(0.5),
+                    padding: EdgeInsets.symmetric(vertical: 2),
+                    child: Text(
+                      '${post['location_name']}',
+                      style: TextStyle(color: Colors.white, fontSize: 10),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+            ],
           ),
         );
       },
@@ -204,6 +385,7 @@ class _ExplorePageState extends State<ExplorePage> {
 
   @override
   Widget build(BuildContext context) {
+    print('KESFET DEBUG: build called');
     return Scaffold(
       body: SafeArea(
         child: Column(

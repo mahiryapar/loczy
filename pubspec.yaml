@@ -49,6 +49,9 @@ dependencies:
   mqtt_client: ^10.8.0
   flutter_local_notifications: ^19.1.0
   flutter_background_service: ^5.1.0
+  geolocator: ^14.0.0
+  geocoding: ^3.0.0
+
 
 dev_dependencies:
   flutter_test:

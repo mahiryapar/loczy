@@ -745,10 +745,29 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  // Helper function to parse location JSON and get name
+  String _getLocationName(String? locationJson) {
+    if (locationJson == null || locationJson.isEmpty) {
+      return 'Konum Yok';
+    }
+    try {
+      final decoded = json.decode(locationJson);
+      if (decoded is Map<String, dynamic> && decoded.containsKey('name')) {
+        return decoded['name'] ?? 'Konum Yok';
+      }
+    } catch (e) {
+      print("Error parsing location JSON: $e");
+      // Return the original string if it's not valid JSON or doesn't have 'name'
+      return locationJson;
+    }
+    return 'Konum Yok'; // Default fallback
+  }
+
   // Builds a single post item (Keep as is, VisibilityDetector handles seen logic)
   Widget _buildPostItem(Post post) {
     // ... (no changes needed here, relies on _seenPostIds state) ...
     bool isVideo = post.mediaUrl.endsWith('.mp4');
+    String locationName = _getLocationName(post.konum); // Parse location
 
     // Wrap the Card with VisibilityDetector
     return VisibilityDetector(
@@ -792,21 +811,34 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   SizedBox(width: 8),
-                   GestureDetector(
-                     onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => KullaniciGosterPage(userId: post.atanId)),
-                    ),
-                     child: Column(
-                       crossAxisAlignment: CrossAxisAlignment.start,
-                       children: [
-                         Text(post.creatorNickname, style: TextStyle(fontWeight: FontWeight.bold)),
-                         Text(post.konum, style: TextStyle(fontSize: 12, color: Colors.grey)),
-                       ],
+                   Expanded( // Allow column to expand and constrain width for scrolling text
+                     child: GestureDetector(
+                       onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => KullaniciGosterPage(userId: post.atanId)),
+                      ),
+                       child: Column(
+                         crossAxisAlignment: CrossAxisAlignment.start,
+                         children: [
+                           Text(post.creatorNickname, style: TextStyle(fontWeight: FontWeight.bold)),
+                           // --- Updated Location Display ---
+                           SingleChildScrollView(
+                             scrollDirection: Axis.horizontal,
+                             child: Text(
+                               locationName, // Use parsed name
+                               style: TextStyle(fontSize: 12, color: Colors.grey),
+                               softWrap: false, // Prevent wrapping
+                               overflow: TextOverflow.fade, // Indicate overflow visually if needed
+                             ),
+                           ),
+                           // --- End of Update ---
+                         ],
+                       ),
                      ),
                    ),
-                  Spacer(),
+                  // Spacer(), // Removed Spacer as Expanded is used now
                   // Optional: More options button (...)
+                  // Add if needed, e.g., IconButton(onPressed: (){}, icon: Icon(Icons.more_horiz))
                 ],
               ),
             ),
