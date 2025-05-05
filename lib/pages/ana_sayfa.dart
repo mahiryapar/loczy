@@ -101,41 +101,83 @@ class _AnaSayfaState extends State<AnaSayfa> {
 
   // Add this new method to fetch stored notifications
   Future<void> _fetchStoredNotifications() async {
+    print('DEBUG: ========== FETCH STORED NOTIFICATIONS STARTED ==========');
     SharedPreferences prefs = await SharedPreferences.getInstance();
     final int? userId = prefs.getInt('userId');
     
     if (userId == null) {
-      print('Cannot fetch notifications: userId not found');
+      print('DEBUG: Cannot fetch notifications: userId not found');
       return;
     }
     
+    print('DEBUG: Fetching notifications for user ID: $userId');
     try {
+      final url = '${ConfigLoader.apiUrl}/routers/notifications.php?user_id=$userId';
+      print('DEBUG: Fetch URL: $url');
+      
       final response = await http.get(
-        Uri.parse('${ConfigLoader.apiUrl}/routers/notifications.php?user_id=$userId'),
+        Uri.parse(url),
         headers: {
           'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
           'Content-Type': 'application/json',
         },
       );
       
+      print('DEBUG: Response status code: ${response.statusCode}');
+      print('DEBUG: Raw response body: ${response.body}');
+      
       if (response.statusCode == 200) {
+        print('DEBUG: Response received successfully');
         final List<dynamic> notifications = json.decode(response.body);
         final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
         
-        print('Fetched ${notifications.length} notifications from database');
+        print('DEBUG: Fetched ${notifications.length} notifications from database');
+        print('DEBUG: Full notifications list: $notifications');
+        
+        // DEBUG: Print structure of the first notification if it exists
+        if (notifications.isNotEmpty) {
+          print('DEBUG: First notification structure:');
+          final firstNotification = notifications[0];
+          print('Keys: ${firstNotification.keys.toList()}');
+          firstNotification.forEach((key, value) {
+            print('$key: ${value.runtimeType} = $value');
+          });
+        }
         
         // Add unread notifications to the provider
+        int unreadCount = 0;
+        List<int> unreadNotificationIds = []; // Track IDs of unread notifications
+        
         for (var notification in notifications) {
+          print('DEBUG: \n--- Processing notification: $notification ---');
+          
+          // Debug read status
+          print('DEBUG: Read status: ${notification['read']} (${notification['read'].runtimeType})');
+          
           // Skip if already read (read = 1 or true)
           if (notification['read'] == 1 || notification['read'] == true) {
+            print('DEBUG: Notification already read, skipping');
             continue;
           }
           
-          // Extract notification data
-          final String title = notification['title'] ?? 'Bildirim';
-          final String body = notification['content'] ?? '';
-          final String type = notification['type'] ?? 'default';
-          final int notificationId = notification['id'];
+          unreadCount++;
+          int notificationId = notification['id'];
+          unreadNotificationIds.add(notificationId); // Add ID to list for marking later
+          
+          // Extract notification data from the nested 'content' field
+          final Map<String, dynamic> content = notification['content'];
+          print('DEBUG: Content: $content');
+          
+          // Get the actual values from content field
+          final String type = content['type'] ?? 'default';
+          final String title = content['title'] ?? 'Bildirim';
+          final String body = content['body'] ?? '';
+          
+          print('DEBUG: Notification data:');
+          print('  ID: $notificationId');
+          print('  Type: $type');
+          print('  Title: $title');
+          print('  Body: $body');
           
           // Create payload based on notification type
           Map<String, dynamic> payloadData = {
@@ -143,18 +185,35 @@ class _AnaSayfaState extends State<AnaSayfa> {
             'notification_id': notificationId,
           };
           
-          // Add type-specific data to the payload if available
-          if (notification['payload'] != null) {
-            try {
-              final Map<String, dynamic> additionalPayload = 
-                notification['payload'] is String 
-                  ? json.decode(notification['payload']) 
-                  : notification['payload'];
-              payloadData.addAll(additionalPayload);
-            } catch (e) {
-              print('Error parsing payload JSON: $e');
-            }
+          // Add type-specific data to the payload
+          // These are nested inside the content object, not directly in notification
+          switch (type) {
+            case 'post_like':
+            case 'comment':
+              if (content['post_id'] != null) {
+                payloadData['post_id'] = content['post_id'];
+                print('DEBUG: Added post_id: ${content['post_id']} to payload');
+              }
+              break;
+              
+            case 'follow_request':
+              if (content['user_id'] != null) {
+                payloadData['user_id'] = content['user_id'];
+                print('DEBUG: Added user_id: ${content['user_id']} to payload');
+              }
+              break;
+              
+            case 'chat_message':
+              if (content['sender_id'] != null) {
+                payloadData['senderId'] = content['sender_id'];
+              }
+              if (content['chat_id'] != null) {
+                payloadData['chatId'] = content['chat_id'];
+              }
+              break;
           }
+          
+          print('DEBUG: Final payload: $payloadData');
           
           // Add the notification to the provider with database ID
           notificationProvider.addNotification(
@@ -164,17 +223,47 @@ class _AnaSayfaState extends State<AnaSayfa> {
             payload: payloadData,
             notificationId: notificationId,
           );
+          
+          // Instead of calling _markNotificationAsRead, inline the HTTP request code here
+          try {
+            final markResponse = await http.put(
+              Uri.parse('${ConfigLoader.apiUrl}/routers/notifications.php?notification_id=$notificationId'), // notification_id as query parameter
+              headers: {
+              'Authorization': 'Bearer ${ConfigLoader.bearerToken}',
+              // Content-Type might not be strictly necessary for a PUT with no body,
+              // but include if your API requires it.
+              // 'Content-Type': 'application/json',
+              },
+              // Body is removed as the ID is now in the URL query parameter
+            );
+            
+            if (markResponse.statusCode == 200) {
+              print('DEBUG: Successfully marked notification $notificationId as read');
+            } else {
+              print('DEBUG: Failed to mark notification $notificationId as read: ${markResponse.statusCode}');
+            }
+          } catch (e) {
+            print('DEBUG: Error marking notification $notificationId as read: $e');
+          }
         }
+        print('DEBUG: Added $unreadCount unread notifications to the provider');
+        
+        print('DEBUG: All notifications marked as read in database');
+        
       } else {
-        print('Failed to fetch notifications: ${response.statusCode} ${response.body}');
+        print('DEBUG: Failed to fetch notifications: ${response.statusCode}');
+        print('DEBUG: Error response: ${response.body}');
         try {
           final errorBody = json.decode(response.body);
-          print('Error details: $errorBody');
-        } catch (_) {}
+          print('DEBUG: Error details: $errorBody');
+        } catch (_) {
+          print('DEBUG: Could not parse error response as JSON');
+        }
       }
     } catch (e) {
-      print('Error fetching notifications: $e');
+      print('DEBUG: Exception in _fetchStoredNotifications: $e');
     }
+    print('DEBUG: ========== FETCH STORED NOTIFICATIONS COMPLETED ==========');
   }
 
   // Initialize and connect MQTT service

@@ -344,6 +344,7 @@ class MqttService {
 
   // New method to mark notification as read in the database
   Future<void> markNotificationAsRead(int notificationId) async {
+    print('DEBUG: Marking notification as read in database with ID: $notificationId'); // DEBUG PRINT
     try {
       final uri = Uri.parse('${ConfigLoader.apiUrl}/routers/notifications.php')
           .replace(queryParameters: {'notification_id': notificationId.toString()});
